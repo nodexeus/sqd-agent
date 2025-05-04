@@ -13,17 +13,25 @@ import (
 
 // NodeStatus represents the combined local and network status of a node
 type NodeStatus struct {
-	Instance    string
-	PeerID      string
-	Name        string
-	LocalStatus string
-	APR         float64
-	Online      bool
-	Jailed      bool
-	JailReason  string
-	LastChecked time.Time
-	LastRestart time.Time
-	Healthy     bool
+	Instance          string
+	PeerID            string
+	Name              string
+	LocalStatus       string
+	APR               float64
+	Online            bool
+	Jailed            bool
+	JailReason        string
+	Queries24Hours    int
+	Uptime24Hours     int
+	Version           string
+	ServedData24Hours int
+	StoredData        int
+	TotalDelegation   int
+	ClaimedReward     int
+	ClaimableReward   int
+	LastChecked       time.Time
+	LastRestart       time.Time
+	Healthy           bool
 }
 
 // Monitor is responsible for monitoring SQD nodes
