@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,6 +16,7 @@ import (
 	"github.com/nodexeus/sqd-agent/pkg/monitor"
 	"github.com/nodexeus/sqd-agent/pkg/notifier"
 	"github.com/nodexeus/sqd-agent/pkg/updater"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -29,28 +29,29 @@ var (
 func main() {
 	flag.Parse()
 
-	// Show version and exit if requested
-	if *showVersion {
-		fmt.Printf("SQD Agent v%s (built %s)\n", version, buildTime)
-		return
-	}
-
 	// Print version
-	fmt.Printf("SQD Agent v%s (built %s)\n", version, buildTime)
+	if *showVersion {
+		fmt.Printf("SQD Agent v%s (built at %s)\n", version, buildTime)
+		os.Exit(0)
+	}
 
 	// Load configuration
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		log.Printf("Warning: %v", err)
+		log.Warnf("Warning: %v", err)
 	}
+
+	// Configure logging
+	configureLogging(cfg.LogLevel)
+	log.Info("Starting SQD Agent v", version)
 
 	// Get system hostname
 	hostname, err := os.Hostname()
 	if err != nil {
-		log.Printf("Warning: failed to get hostname: %v", err)
+		log.Warnf("Warning: failed to get hostname: %v", err)
 		hostname = "unknown"
 	}
-	log.Printf("Running on host: %s", hostname)
+	log.Infof("Running on host: %s", hostname)
 
 	// Create components
 	discoverer := discovery.NewDiscoverer(cfg)
@@ -84,13 +85,13 @@ func main() {
 	// Create updater
 	var upd *updater.Updater
 	if cfg.AutoUpdate {
-		upd, err = updater.NewUpdater(cfg)
+		upd, err = updater.NewUpdater(version)
 		if err != nil {
-			log.Printf("Warning: Failed to create updater: %v", err)
+			log.Warnf("Warning: Failed to create updater: %v", err)
 		}
 	}
 
-	// Create context that can be cancelled
+	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -99,78 +100,66 @@ func main() {
 		log.Fatalf("Failed to start monitor: %v", err)
 	}
 
-	// Start metrics updater if enabled
-	if cfg.Prometheus.Enabled && prometheusExporter != nil {
-		go func() {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					prometheusExporter.UpdateMetrics()
-				}
-			}
-		}()
-	}
+	// Wait for termination signal
+	sig := <-sigChan
+	log.Infof("Received signal %v, shutting down...", sig)
 
-	// Start auto-updater if enabled
-	if cfg.AutoUpdate && upd != nil {
-		go func() {
-			ticker := time.NewTicker(24 * time.Hour)
-			defer ticker.Stop()
-
-			// Check for updates immediately on startup
-			checkAndUpdate(ctx, upd)
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					checkAndUpdate(ctx, upd)
-				}
-			}
-		}()
-	}
-
-	// Handle signals
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	// Wait for signal
-	sig := <-sigCh
-	log.Printf("Received signal %v, shutting down...", sig)
-
-	// Cancel context to stop all components
+	// Cancel context to stop all background tasks
 	cancel()
 
-	// Stop Prometheus exporter if enabled
-	if cfg.Prometheus.Enabled && prometheusExporter != nil {
+	// Stop Prometheus exporter
+	if prometheusExporter != nil {
 		if err := prometheusExporter.Stop(); err != nil {
-			log.Printf("Error stopping Prometheus exporter: %v", err)
+			log.Errorf("Error stopping Prometheus exporter: %v", err)
 		}
 	}
 
-	log.Println("Shutdown complete")
+	log.Info("Shutdown complete")
+
+	// Check for updates before exiting
+	if upd != nil {
+		log.Info("Checking for updates...")
+		releaseInfo, err := upd.CheckForUpdates()
+		if err != nil {
+			log.Errorf("Error checking for updates: %v", err)
+		} else if releaseInfo != nil {
+			log.Infof("New version available: %s", releaseInfo.Version)
+			if err := upd.Update(releaseInfo); err != nil {
+				log.Errorf("Error updating: %v", err)
+			} else {
+				log.Infof("Update to version %s scheduled for next restart", releaseInfo.Version)
+			}
+		} else {
+			log.Info("No updates available")
+		}
+	}
 }
 
-// checkAndUpdate checks for updates and applies them if available
-func checkAndUpdate(ctx context.Context, upd *updater.Updater) {
-	releaseInfo, hasUpdate, err := upd.CheckForUpdates(ctx)
-	if err != nil {
-		log.Printf("Error checking for updates: %v", err)
-		return
-	}
+// configureLogging sets up the logging based on the configured log level
+func configureLogging(logLevel string) {
+	// Set log formatter
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
 
-	if hasUpdate {
-		log.Printf("New version available: %s", releaseInfo.Version)
-		if err := upd.Update(ctx, releaseInfo); err != nil {
-			log.Printf("Error updating: %v", err)
-			return
-		}
-		log.Printf("Update to version %s scheduled for next restart", releaseInfo.Version)
+	// Set output to stdout
+	log.SetOutput(os.Stdout)
+
+	// Set log level
+	switch logLevel {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "warn", "warning":
+		log.SetLevel(log.WarnLevel)
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
 	}
 }

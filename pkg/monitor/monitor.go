@@ -9,6 +9,7 @@ import (
 	"github.com/nodexeus/sqd-agent/pkg/api"
 	"github.com/nodexeus/sqd-agent/pkg/config"
 	"github.com/nodexeus/sqd-agent/pkg/discovery"
+	log "github.com/sirupsen/logrus"
 )
 
 // NodeStatus represents the combined local and network status of a node
@@ -76,8 +77,8 @@ func (m *Monitor) Start(ctx context.Context) error {
 	// Initial discovery and check
 	if err := m.discoverAndCheck(ctx); err != nil {
 		// Log the error but continue instead of failing
-		fmt.Printf("Warning: initial node discovery failed: %v\n", err)
-		fmt.Println("Agent will continue to run and retry on next monitor period")
+		log.Warnf("Initial node discovery failed: %v", err)
+		log.Info("Agent will continue to run and retry on next monitor period")
 	}
 
 	// Start periodic monitoring
@@ -93,12 +94,12 @@ func (m *Monitor) Start(ctx context.Context) error {
 				return
 			case <-monitorTicker.C:
 				if err := m.discoverAndCheck(ctx); err != nil {
-					fmt.Printf("Error during node discovery and check: %v\n", err)
+					log.Errorf("Error during node discovery and check: %v", err)
 				}
 			case <-actionTicker.C:
 				if !m.config.PassiveMode {
 					if err := m.takeActions(ctx); err != nil {
-						fmt.Printf("Error taking actions on nodes: %v\n", err)
+						log.Errorf("Error taking actions on nodes: %v", err)
 					}
 				}
 			}
@@ -113,45 +114,32 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	// Discover nodes
 	nodes, err := m.discoverer.DiscoverNodes()
 	if err != nil {
-		return fmt.Errorf("node discovery failed: %w", err)
+		return fmt.Errorf("failed to discover nodes: %w", err)
 	}
 
+	log.Debugf("Discovered %d nodes", len(nodes))
+
 	// Get network status for all nodes
-	networkStatuses := make(map[string]*api.NodeNetworkStatus)
-	if err := func() error {
-		// Use a timeout for the GraphQL request
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		
-		// Check if we've previously failed to connect
-		connected := m.apiClient.IsConnected()
-		lastError := m.apiClient.GetLastError()
-		lastErrorTime := m.apiClient.GetLastErrorTime()
-		
-		// If we previously failed, log that we're retrying
-		if !connected && lastError != nil {
-			timeSinceError := time.Since(lastErrorTime)
-			fmt.Printf("Retrying GraphQL connection after %s (previous error: %v)\n", 
-				timeSinceError.Round(time.Second), lastError)
-		}
-		
-		statuses, err := m.apiClient.GetAllNodesStatus(ctx)
+	var networkStatuses map[string]*api.NodeNetworkStatus
+	if m.apiClient.IsConnected() {
+		networkStatuses, err = m.apiClient.GetNodesNetworkStatus(ctx)
 		if err != nil {
-			return err
+			log.Warnf("Failed to get network status: %v", err)
+			if !m.apiClient.IsConnected() {
+				log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)", 
+					m.apiClient.GetLastError(), 
+					time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
+				log.Info("Will continue with local status only and retry connection on next check")
+			}
+		} else if !m.apiClient.IsConnected() {
+			// Connection was restored
+			log.Info("GraphQL API connection restored")
 		}
-		
-		// If we're now connected but weren't before, log the recovery
-		if !connected {
-			fmt.Println("Successfully connected to GraphQL API")
-		}
-		
-		networkStatuses = statuses
-		return nil
-	}(); err != nil {
-		// Log the error but continue with empty network statuses
-		fmt.Printf("Warning: failed to get network status: %v\n", err)
-		fmt.Println("Continuing with only local node information")
-		fmt.Println("Will retry on next monitoring cycle")
+	} else {
+		log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)", 
+			m.apiClient.GetLastError(), 
+			time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
+		log.Info("Will continue with local status only and retry connection on next check")
 	}
 
 	// Update node statuses
@@ -201,7 +189,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			reason := m.getUnhealthyReason(status)
 			for _, notifier := range m.notifiers {
 				if err := notifier.NotifyNodeUnhealthy(status, reason); err != nil {
-					fmt.Printf("Error sending unhealthy notification: %v\n", err)
+					log.Errorf("Error sending unhealthy notification: %v", err)
 				}
 			}
 		}
@@ -246,7 +234,7 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 		reason := m.getUnhealthyReason(node)
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
-				fmt.Printf("Error sending restart attempt notification: %v\n", err)
+				log.Errorf("Error sending restart attempt notification: %v", err)
 			}
 		}
 
@@ -256,7 +244,7 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 		if err != nil {
 			for _, notifier := range m.notifiers {
 				if err := notifier.NotifyNodeRestartFailure(node, reason, err); err != nil {
-					fmt.Printf("Error sending restart failure notification: %v\n", err)
+					log.Errorf("Error sending restart failure notification: %v", err)
 				}
 			}
 			return fmt.Errorf("failed to restart node %s: %w", node.Instance, err)
@@ -265,7 +253,7 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 		// Notify restart success
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartSuccess(node, reason); err != nil {
-				fmt.Printf("Error sending restart success notification: %v\n", err)
+				log.Errorf("Error sending restart success notification: %v", err)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
+	log "github.com/sirupsen/logrus"
 )
 
 // NodeInfo contains information about a discovered SQD node
@@ -38,11 +39,14 @@ func (d *Discoverer) DiscoverNodes() ([]NodeInfo, error) {
 	cmd.Stderr = &stderr
 	
 	if err := cmd.Run(); err != nil {
+		log.Errorf("Failed to discover nodes: %v, stderr: %s", err, stderr.String())
 		return nil, fmt.Errorf("failed to discover nodes: %w, stderr: %s", err, stderr.String())
 	}
 	
 	// Parse the output to get instance names
 	nodes := parseInstanceList(stdout.String())
+	
+	log.Debugf("Discovered %d nodes: %v", len(nodes), nodeNames(nodes))
 	
 	// Get additional information for each instance
 	for i, node := range nodes {
@@ -50,13 +54,23 @@ func (d *Discoverer) DiscoverNodes() ([]NodeInfo, error) {
 		peerID, err := d.getNodePeerID(node.Instance)
 		if err != nil {
 			// Log but continue with other nodes
-			fmt.Printf("Warning: failed to get peer ID for instance %s: %v\n", node.Instance, err)
+			log.Warnf("Failed to get peer ID for instance %s: %v", node.Instance, err)
 		} else {
 			nodes[i].PeerID = peerID
+			log.Debugf("Node %s has peer ID %s", node.Instance, peerID)
 		}
 	}
 	
 	return nodes, nil
+}
+
+// Helper function to extract node names for logging
+func nodeNames(nodes []NodeInfo) []string {
+	names := make([]string, len(nodes))
+	for i, node := range nodes {
+		names[i] = fmt.Sprintf("%s (%s)", node.Name, node.LocalStatus)
+	}
+	return names
 }
 
 // getNodePeerID gets the peer ID for a specific node instance
@@ -67,6 +81,7 @@ func (d *Discoverer) getNodePeerID(instance string) (string, error) {
 	cmd.Stderr = &stderr
 	
 	if err := cmd.Run(); err != nil {
+		log.Debugf("Get peer ID command failed for %s: %v, stderr: %s", instance, err, stderr.String())
 		return "", fmt.Errorf("failed to get peer ID: %w, stderr: %s", err, stderr.String())
 	}
 	
@@ -81,31 +96,30 @@ func (d *Discoverer) getNodeStatus(instance string) (string, error) {
 	cmd.Stderr = &stderr
 	
 	if err := cmd.Run(); err != nil {
-		return "failed", fmt.Errorf("failed to get node status: %w, stderr: %s", err, stderr.String())
+		log.Debugf("Node status command failed for %s: %v, stderr: %s", instance, err, stderr.String())
+		return "failed", nil
 	}
 	
-	output := strings.TrimSpace(stdout.String())
-	
-	// Parse the status output - this may need to be adjusted based on actual output format
-	if strings.Contains(output, "running") {
-		return "running", nil
-	} else if strings.Contains(output, "stopped") {
-		return "stopped", nil
-	} else {
-		return "unknown", nil
-	}
+	status := strings.TrimSpace(stdout.String())
+	log.Debugf("Node %s status: %s", instance, status)
+	return status, nil
 }
 
-// RestartNode attempts to restart a specific node instance
+// RestartNode restarts a specific node instance
 func (d *Discoverer) RestartNode(instance string) error {
+	log.Infof("Attempting to restart node %s", instance)
+	
 	cmd := exec.Command("bash", "-c", fmt.Sprintf("%s %s", d.config.Commands.RestartNode, instance))
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	
 	if err := cmd.Run(); err != nil {
+		log.Errorf("Failed to restart node %s: %v, stderr: %s", instance, err, stderr.String())
 		return fmt.Errorf("failed to restart node: %w, stderr: %s", err, stderr.String())
 	}
 	
+	log.Infof("Successfully restarted node %s", instance)
 	return nil
 }
 
@@ -129,7 +143,7 @@ func parseInstanceList(output string) []NodeInfo {
 		// Split the line by whitespace, but preserve quoted strings
 		fields := splitFields(line)
 		if len(fields) < 4 {
-			fmt.Printf("Warning: unexpected format in node list line: %s\n", line)
+			log.Warnf("Unexpected format in node list line: %s", line)
 			continue
 		}
 		
