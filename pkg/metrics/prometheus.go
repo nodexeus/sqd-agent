@@ -125,20 +125,26 @@ func (e *PrometheusExporter) Stop() error {
 // UpdateMetrics updates the Prometheus metrics based on the current node statuses
 func (e *PrometheusExporter) UpdateMetrics() {
 	if !e.config.Prometheus.Enabled {
+		log.Debug("Prometheus metrics exporter is disabled, skipping metrics update")
 		return
 	}
+
+	log.Debug("Updating Prometheus metrics...")
 
 	// Get current node statuses
 	statuses := e.monitor.GetNodeStatuses()
 
-	// Debug logging to show number of statuses
+	// Log the number of statuses
 	log.Infof("Prometheus exporter: updating metrics with %d node statuses", len(statuses))
 
 	// Debug logging to show actual statuses if present
 	if len(statuses) > 0 {
 		for instance, status := range statuses {
-			log.Debugf("Node status for metrics: %s, PeerID: %s, Healthy: %v", instance, status.PeerID, status.Healthy)
+			log.Debugf("Node status for metrics: instance=%s, peerID=%s, name=%s, healthy=%v, local=%s",
+				instance, status.PeerID, status.Name, status.Healthy, status.LocalStatus)
 		}
+	} else {
+		log.Warn("No node statuses available for metrics update - check monitor.GetNodeStatuses()")
 	}
 
 	// Reset metrics to avoid stale data
@@ -151,6 +157,8 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 	// Update metrics for each node
 	for _, status := range statuses {
+		log.Debugf("Creating metrics for node: %s", status.Instance)
+
 		labels := prometheus.Labels{
 			"instance": status.Instance,
 			"peer_id":  status.PeerID,
@@ -159,6 +167,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 		// APR
 		e.nodeAPR.With(labels).Set(status.APR)
+		log.Debugf("Set APR metric for %s: %f", status.Instance, status.APR)
 
 		// Jailed status
 		jailedLabels := prometheus.Labels{
@@ -169,15 +178,19 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		}
 		if status.Jailed {
 			e.nodeJailed.With(jailedLabels).Set(1)
+			log.Debugf("Set jailed metric for %s: 1", status.Instance)
 		} else {
 			e.nodeJailed.With(jailedLabels).Set(0)
+			log.Debugf("Set jailed metric for %s: 0", status.Instance)
 		}
 
 		// Online status
 		if status.Online {
 			e.nodeOnline.With(labels).Set(1)
+			log.Debugf("Set online metric for %s: 1", status.Instance)
 		} else {
 			e.nodeOnline.With(labels).Set(0)
+			log.Debugf("Set online metric for %s: 0", status.Instance)
 		}
 
 		// Local status
@@ -189,22 +202,30 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		}
 		if status.LocalStatus == "running" {
 			e.nodeLocalStatus.With(localStatusLabels).Set(2)
+			log.Debugf("Set local status metric for %s: 2 (running)", status.Instance)
 		} else if status.LocalStatus == "stopped" {
 			e.nodeLocalStatus.With(localStatusLabels).Set(1)
+			log.Debugf("Set local status metric for %s: 1 (stopped)", status.Instance)
 		} else {
 			e.nodeLocalStatus.With(localStatusLabels).Set(0)
+			log.Debugf("Set local status metric for %s: 0 (failed)", status.Instance)
 		}
 
 		// Healthy status
 		if status.Healthy {
 			e.nodeHealthy.With(labels).Set(1)
+			log.Debugf("Set healthy metric for %s: 1", status.Instance)
 		} else {
 			e.nodeHealthy.With(labels).Set(0)
+			log.Debugf("Set healthy metric for %s: 0", status.Instance)
 		}
 
 		// Last restart timestamp
 		if !status.LastRestart.IsZero() {
 			e.lastRestart.With(labels).Set(float64(status.LastRestart.Unix()))
+			log.Debugf("Set last restart metric for %s: %d", status.Instance, status.LastRestart.Unix())
 		}
 	}
+
+	log.Info("Prometheus metrics update completed")
 }
