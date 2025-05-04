@@ -14,17 +14,17 @@ import (
 
 // NodeStatus represents the combined local and network status of a node
 type NodeStatus struct {
-	Instance     string
-	PeerID       string
-	Name         string
-	LocalStatus  string
-	APR          float64
-	Online       bool
-	Jailed       bool
-	JailedReason string
-	LastChecked  time.Time
-	LastRestart  time.Time
-	Healthy      bool
+	Instance    string
+	PeerID      string
+	Name        string
+	LocalStatus string
+	APR         float64
+	Online      bool
+	Jailed      bool
+	JailReason  string
+	LastChecked time.Time
+	LastRestart time.Time
+	Healthy     bool
 }
 
 // Monitor is responsible for monitoring SQD nodes
@@ -156,8 +156,8 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				continue
 			}
 
-			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailedReason=%s, name=%s, apr=%f, peerID=%s",
-				node.Instance, status.Online, status.Jailed, status.JailedReason, status.Name, status.APR, status.PeerID)
+			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailReason=%s, name=%s, apr=%f, peerID=%s",
+				node.Instance, status.Online, status.Jailed, status.JailReason, status.Name, status.APR, status.PeerID)
 
 			networkStatuses[node.PeerID] = status
 		}
@@ -206,7 +206,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				status.APR = networkStatus.APR
 				status.Online = networkStatus.Online
 				status.Jailed = networkStatus.Jailed
-				status.JailedReason = networkStatus.JailedReason
+				status.JailReason = networkStatus.JailReason
 				status.Name = networkStatus.Name // Update name from network status
 			}
 		}
@@ -327,7 +327,7 @@ func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
 	}
 
 	if node.Jailed {
-		return fmt.Sprintf("Node is jailed: %s", node.JailedReason)
+		return fmt.Sprintf("Node is jailed: %s", node.JailReason)
 	}
 
 	if node.APR <= 0 {

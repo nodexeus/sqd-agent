@@ -192,7 +192,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			"instance": status.Instance,
 			"peer_id":  status.PeerID,
 			"name":     status.Name,
-			"reason":   status.JailedReason,
+			"reason":   status.JailReason,
 		}
 		if status.Jailed {
 			e.nodeJailed.With(jailedLabels).Set(1)

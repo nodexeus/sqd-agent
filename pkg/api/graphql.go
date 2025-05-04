@@ -14,12 +14,12 @@ import (
 
 // NodeNetworkStatus represents the network status of a node from the GraphQL API
 type NodeNetworkStatus struct {
-	PeerID       string  `json:"peerId"`
-	Name         string  `json:"name"`
-	APR          float64 `json:"apr"`
-	Online       bool    `json:"online"`
-	Jailed       bool    `json:"jailed"`
-	JailedReason string  `json:"jailReason"`
+	PeerID     string  `json:"peerId"`
+	Name       string  `json:"name"`
+	APR        float64 `json:"apr"`
+	Online     bool    `json:"online"`
+	Jailed     bool    `json:"jailed"`
+	JailReason string  `json:"jailReason"`
 }
 
 // GraphQLClient is a client for the SQD GraphQL API
@@ -164,12 +164,12 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 
 	worker := workers[0].(map[string]interface{})
 	status := &NodeNetworkStatus{
-		PeerID:       worker["peerId"].(string),
-		Name:         worker["name"].(string),
-		APR:          worker["apr"].(float64),
-		Online:       worker["online"].(bool),
-		Jailed:       worker["jailed"].(bool),
-		JailedReason: worker["jailReason"].(string),
+		PeerID:     worker["peerId"].(string),
+		Name:       worker["name"].(string),
+		APR:        worker["apr"].(float64),
+		Online:     worker["online"].(bool),
+		Jailed:     worker["jailed"].(bool),
+		JailReason: worker["jailReason"].(string),
 	}
 
 	// If we got here, the request was successful
@@ -180,144 +180,144 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 }
 
 // GetAllNodesStatus gets the network status of all nodes
-func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*NodeNetworkStatus, error) {
-	// This is a placeholder query - will be replaced with the actual query later
-	query := `
-	query GetAllNodesStatus {
-		nodes {
-			peerId
-			name
-			apr
-			online
-			jailed
-			jailedReason
-		}
-	}
-	`
+// func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*NodeNetworkStatus, error) {
+// 	// This is a placeholder query - will be replaced with the actual query later
+// 	query := `
+// 	query GetAllNodesStatus {
+// 		workers {
+// 			peerId
+// 			name
+// 			apr
+// 			online
+// 			jailed
+// 			jailReason
+// 		}
+// 	}
+// 	`
 
-	// Create the request
-	reqBody, err := json.Marshal(GraphQLRequest{
-		Query: query,
-	})
-	if err != nil {
-		c.lastError = err
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("error marshaling GraphQL request: %w", err)
-	}
+// 	// Create the request
+// 	reqBody, err := json.Marshal(GraphQLRequest{
+// 		Query: query,
+// 	})
+// 	if err != nil {
+// 		c.lastError = err
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("error marshaling GraphQL request: %w", err)
+// 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		c.config.GraphQL.Endpoint,
-		bytes.NewBuffer(reqBody),
-	)
-	if err != nil {
-		c.lastError = err
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("error creating HTTP request: %w", err)
-	}
+// 	// Create HTTP request
+// 	req, err := http.NewRequestWithContext(
+// 		ctx,
+// 		http.MethodPost,
+// 		c.config.GraphQL.Endpoint,
+// 		bytes.NewBuffer(reqBody),
+// 	)
+// 	if err != nil {
+// 		c.lastError = err
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("error creating HTTP request: %w", err)
+// 	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
+// 	// Set headers
+// 	req.Header.Set("Content-Type", "application/json")
 
-	// Execute the request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		c.lastError = err
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("error executing GraphQL request: %w", err)
-	}
-	defer resp.Body.Close()
+// 	// Execute the request
+// 	resp, err := c.httpClient.Do(req)
+// 	if err != nil {
+// 		c.lastError = err
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("error executing GraphQL request: %w", err)
+// 	}
+// 	defer resp.Body.Close()
 
-	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		c.lastError = err
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("error reading response body: %w", err)
-	}
+// 	// Read the response body
+// 	body, err := ioutil.ReadAll(resp.Body)
+// 	if err != nil {
+// 		c.lastError = err
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("error reading response body: %w", err)
+// 	}
 
-	// Parse the response
-	var graphQLResp GraphQLResponse
-	if err := json.Unmarshal(body, &graphQLResp); err != nil {
-		c.lastError = err
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("error unmarshaling GraphQL response: %w", err)
-	}
+// 	// Parse the response
+// 	var graphQLResp GraphQLResponse
+// 	if err := json.Unmarshal(body, &graphQLResp); err != nil {
+// 		c.lastError = err
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("error unmarshaling GraphQL response: %w", err)
+// 	}
 
-	// Check for GraphQL errors
-	if len(graphQLResp.Errors) > 0 {
-		c.lastError = fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
-	}
+// 	// Check for GraphQL errors
+// 	if len(graphQLResp.Errors) > 0 {
+// 		c.lastError = fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
+// 	}
 
-	// Extract nodes data
-	nodesData, ok := graphQLResp.Data["nodes"].([]interface{})
-	if !ok {
-		c.lastError = fmt.Errorf("unexpected response format: nodes data not found")
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("unexpected response format: nodes data not found")
-	}
+// 	// Extract nodes data
+// 	nodesData, ok := graphQLResp.Data["nodes"].([]interface{})
+// 	if !ok {
+// 		c.lastError = fmt.Errorf("unexpected response format: nodes data not found")
+// 		c.lastErrorTime = time.Now()
+// 		c.connected = false
+// 		return nil, fmt.Errorf("unexpected response format: nodes data not found")
+// 	}
 
-	// Parse the nodes data
-	result := make(map[string]*NodeNetworkStatus)
-	for _, nodeInterface := range nodesData {
-		nodeData, ok := nodeInterface.(map[string]interface{})
-		if !ok {
-			continue
-		}
+// 	// Parse the nodes data
+// 	result := make(map[string]*NodeNetworkStatus)
+// 	for _, nodeInterface := range nodesData {
+// 		nodeData, ok := nodeInterface.(map[string]interface{})
+// 		if !ok {
+// 			continue
+// 		}
 
-		status := &NodeNetworkStatus{}
+// 		status := &NodeNetworkStatus{}
 
-		// Extract peer ID
-		peerID, ok := nodeData["peerId"].(string)
-		if !ok {
-			continue
-		}
-		status.PeerID = peerID
+// 		// Extract peer ID
+// 		peerID, ok := nodeData["peerId"].(string)
+// 		if !ok {
+// 			continue
+// 		}
+// 		status.PeerID = peerID
 
-		// Extract name
-		if name, ok := nodeData["name"].(string); ok {
-			status.Name = name
-		}
+// 		// Extract name
+// 		if name, ok := nodeData["name"].(string); ok {
+// 			status.Name = name
+// 		}
 
-		// Extract APR
-		if apr, ok := nodeData["apr"].(float64); ok {
-			status.APR = apr
-		}
+// 		// Extract APR
+// 		if apr, ok := nodeData["apr"].(float64); ok {
+// 			status.APR = apr
+// 		}
 
-		// Extract online status
-		if online, ok := nodeData["online"].(bool); ok {
-			status.Online = online
-		}
+// 		// Extract online status
+// 		if online, ok := nodeData["online"].(bool); ok {
+// 			status.Online = online
+// 		}
 
-		// Extract jailed status
-		if jailed, ok := nodeData["jailed"].(bool); ok {
-			status.Jailed = jailed
-		}
+// 		// Extract jailed status
+// 		if jailed, ok := nodeData["jailed"].(bool); ok {
+// 			status.Jailed = jailed
+// 		}
 
-		// Extract jailed reason
-		if jailedReason, ok := nodeData["jailedReason"].(string); ok {
-			status.JailedReason = jailedReason
-		}
+// 		// Extract jailed reason
+// 		if jailReason, ok := nodeData["jailReason"].(string); ok {
+// 			status.JailReason = jailReason
+// 		}
 
-		result[peerID] = status
-	}
+// 		result[peerID] = status
+// 	}
 
-	c.lastError = nil
-	c.lastErrorTime = time.Time{}
-	c.connected = true
-	return result, nil
-}
+// 	c.lastError = nil
+// 	c.lastErrorTime = time.Time{}
+// 	c.connected = true
+// 	return result, nil
+// }
 
 // TestConnection tests the connection to the GraphQL endpoint
 // Returns true if the connection is successful
