@@ -119,57 +119,37 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 	log.Debugf("Discovered %d nodes", len(nodes))
 
-	// Get network status for all nodes
+	// Get network status for each node
 	networkStatuses := make(map[string]*api.NodeNetworkStatus)
-
-	// Proactively test the connection if not already connected
-	if !m.apiClient.IsConnected() {
-		log.Debug("GraphQL API connection not established, testing connection...")
-		if m.apiClient.TestConnection(ctx) {
-			log.Info("Successfully established connection to GraphQL API")
-		}
-	}
-
 	if m.apiClient.IsConnected() {
 		log.Debug("GraphQL API is connected, fetching network status for discovered nodes")
-		// For each discovered node with a peer ID, get its network status
 		for _, node := range nodes {
 			if node.PeerID == "" {
-				log.Debugf("Skipping network status for node %s: no peer ID", node.Instance)
-				continue // Skip nodes without peer ID
+				continue
 			}
 
 			log.Debugf("Fetching network status for node %s with peer ID %s", node.Instance, node.PeerID)
 			status, err := m.apiClient.GetNodeStatus(ctx, node.PeerID)
 			if err != nil {
-				log.Warnf("Failed to get network status for node %s: %v", node.Instance, err)
+				log.Errorf("Failed to get network status for node %s: %v", node.Instance, err)
 				continue
 			}
 
-			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailedReason=%v, name=%v, apr=%v, peerID=%v",
+			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailedReason=%s, name=%s, apr=%f, peerID=%s",
 				node.Instance, status.Online, status.Jailed, status.JailedReason, status.Name, status.APR, status.PeerID)
 
-			// Add to map of statuses
 			networkStatuses[node.PeerID] = status
 		}
-
-		if len(networkStatuses) == 0 && len(nodes) > 0 {
-			log.Warnf("Failed to get network status for any nodes")
-			if !m.apiClient.IsConnected() {
-				log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
-					m.apiClient.GetLastError(),
-					time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
-				log.Info("Will continue with local status only and retry connection on next check")
-			}
-		} else if !m.apiClient.IsConnected() {
-			// Connection was restored
-			log.Info("GraphQL API connection restored")
-		}
 	} else {
-		log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
-			m.apiClient.GetLastError(),
-			time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
-		log.Info("Will continue with local status only and retry connection on next check")
+		log.Debug("GraphQL API connection not established, testing connection...")
+		if !m.apiClient.TestConnection(ctx) {
+			log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
+				m.apiClient.GetLastError(),
+				time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
+			log.Info("Will continue with local status only and retry connection on next check")
+		} else {
+			log.Info("Successfully established connection to GraphQL API")
+		}
 	}
 
 	// Update node statuses
@@ -228,14 +208,13 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	// Remove nodes that are no longer present
 	for instance := range m.nodes {
 		if _, exists := discoveredInstances[instance]; !exists {
-			m.nodesMu.Lock()
 			delete(m.nodes, instance)
-			m.nodesMu.Unlock()
 		}
 	}
 
 	// Update metrics if exporter is configured
 	if m.metricsExporter != nil {
+		log.Debug("Updating Prometheus metrics after node status changes...")
 		m.metricsExporter.UpdateMetrics()
 	}
 
