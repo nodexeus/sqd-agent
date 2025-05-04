@@ -3,7 +3,6 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/api"
@@ -33,7 +32,6 @@ type Monitor struct {
 	discoverer      *discovery.Discoverer
 	apiClient       *api.GraphQLClient
 	nodes           map[string]*NodeStatus // Map of instance name to node status
-	nodesMu         sync.RWMutex           // Mutex for thread-safe access to nodes map
 	notifiers       []Notifier
 	metricsExporter MetricsExporter
 }
@@ -111,6 +109,8 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 // discoverAndCheck discovers nodes and checks their status
 func (m *Monitor) discoverAndCheck(ctx context.Context) error {
+	log.Debug("Starting discoverAndCheck")
+
 	// Discover nodes
 	nodes, err := m.discoverer.DiscoverNodes()
 	if err != nil {
@@ -179,7 +179,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		discoveredInstances[node.Instance] = true
 	}
 
-	// Prepare all updates before acquiring the lock
+	// Prepare all updates
 	updates := make(map[string]*NodeStatus)
 	unhealthyNodes := make(map[string]string) // instance -> reason
 
@@ -216,10 +216,6 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		updates[node.Instance] = status
 	}
 
-	// Now acquire the lock and update everything at once
-	m.nodesMu.Lock()
-	defer m.nodesMu.Unlock()
-
 	// Update all nodes
 	for instance, status := range updates {
 		// Check if node was previously healthy
@@ -255,14 +251,12 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		m.metricsExporter.UpdateMetrics()
 	}
 
+	log.Debug("Completed discoverAndCheck")
 	return nil
 }
 
 // takeActions takes actions on unhealthy nodes
 func (m *Monitor) takeActions(ctx context.Context) error {
-	m.nodesMu.Lock()
-	defer m.nodesMu.Unlock()
-
 	now := time.Now()
 
 	for _, node := range m.nodes {
@@ -355,31 +349,15 @@ func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
 
 // GetNodeStatuses returns a copy of the current node statuses
 func (m *Monitor) GetNodeStatuses() map[string]*NodeStatus {
-	log.Debug("Attempting to acquire read lock for GetNodeStatuses")
+	log.Debug("Starting GetNodeStatuses")
 
-	// Try to acquire the read lock with a timeout
-	lockAcquired := make(chan bool, 1)
-	go func() {
-		m.nodesMu.RLock()
-		lockAcquired <- true
-	}()
-
-	select {
-	case <-lockAcquired:
-		defer m.nodesMu.RUnlock()
-		log.Debug("Successfully acquired read lock for GetNodeStatuses")
-
-		result := make(map[string]*NodeStatus, len(m.nodes))
-		for k, v := range m.nodes {
-			// Create a copy of the status to avoid external modification of our internal state
-			statusCopy := *v
-			result[k] = &statusCopy
-		}
-
-		log.Debugf("GetNodeStatuses returning %d nodes", len(result))
-		return result
-	case <-time.After(5 * time.Second):
-		log.Error("Timeout while trying to acquire read lock for GetNodeStatuses")
-		return nil
+	result := make(map[string]*NodeStatus, len(m.nodes))
+	for k, v := range m.nodes {
+		// Create a copy of the status to avoid external modification of our internal state
+		statusCopy := *v
+		result[k] = &statusCopy
 	}
+
+	log.Debugf("GetNodeStatuses returning %d nodes", len(result))
+	return result
 }
