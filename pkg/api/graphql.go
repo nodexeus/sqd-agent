@@ -38,7 +38,8 @@ func NewGraphQLClient(cfg *config.Config) *GraphQLClient {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		connected: false,
+		connected:     false,
+		lastErrorTime: time.Now(),
 	}
 }
 
@@ -64,7 +65,7 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	// This is a placeholder query - will be replaced with the actual query later
 	query := `
 	query GetNodeStatus($peerId: String!) {
-		workers(where: {peerId_eq: "$peerId"}) {
+		workers(where: {peerId_eq: $peerId}) {
 			apr
 			name
 			online
@@ -138,45 +139,62 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		return nil, fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
 	}
 
-	// Extract node data
-	nodeData, ok := graphQLResp.Data["node"].(map[string]interface{})
+	// Extract workers data
+	workersData, ok := graphQLResp.Data["workers"].([]interface{})
 	if !ok {
-		c.lastError = fmt.Errorf("unexpected response format: node data not found")
+		c.lastError = fmt.Errorf("unexpected response format: workers data not found or not an array")
 		c.lastErrorTime = time.Now()
 		c.connected = false
-		return nil, fmt.Errorf("unexpected response format: node data not found")
+		return nil, fmt.Errorf("unexpected response format: workers data not found or not an array")
+	}
+
+	// We expect at most one worker for a specific peer ID
+	if len(workersData) == 0 {
+		c.lastError = fmt.Errorf("no worker found with peer ID: %s", peerID)
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return nil, fmt.Errorf("no worker found with peer ID: %s", peerID)
+	}
+
+	// Get the first worker
+	workerData, ok := workersData[0].(map[string]interface{})
+	if !ok {
+		c.lastError = fmt.Errorf("unexpected response format: worker data is not an object")
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return nil, fmt.Errorf("unexpected response format: worker data is not an object")
 	}
 
 	// Parse the node data
 	status := &NodeNetworkStatus{}
 
 	// Extract peer ID
-	if peerID, ok := nodeData["peerId"].(string); ok {
+	if peerID, ok := workerData["peerId"].(string); ok {
 		status.PeerID = peerID
 	}
 
 	// Extract name
-	if name, ok := nodeData["name"].(string); ok {
+	if name, ok := workerData["name"].(string); ok {
 		status.Name = name
 	}
 
 	// Extract APR
-	if apr, ok := nodeData["apr"].(float64); ok {
+	if apr, ok := workerData["apr"].(float64); ok {
 		status.APR = apr
 	}
 
 	// Extract online status
-	if online, ok := nodeData["online"].(bool); ok {
+	if online, ok := workerData["online"].(bool); ok {
 		status.Online = online
 	}
 
 	// Extract jailed status
-	if jailed, ok := nodeData["jailed"].(bool); ok {
+	if jailed, ok := workerData["jailed"].(bool); ok {
 		status.Jailed = jailed
 	}
 
 	// Extract jailed reason
-	if jailedReason, ok := nodeData["jailedReason"].(string); ok {
+	if jailedReason, ok := workerData["jailReason"].(string); ok {
 		status.JailedReason = jailedReason
 	}
 
