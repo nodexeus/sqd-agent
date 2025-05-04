@@ -16,16 +16,24 @@ type NodeStatusProvider func() map[string]*monitor.NodeStatus
 
 // PrometheusExporter exports metrics to Prometheus
 type PrometheusExporter struct {
-	config          *config.Config
-	getNodeStatuses NodeStatusProvider
-	registry        *prometheus.Registry
-	nodeAPR         *prometheus.GaugeVec
-	nodeJailed      *prometheus.GaugeVec
-	nodeOnline      *prometheus.GaugeVec
-	nodeLocalStatus *prometheus.GaugeVec
-	nodeHealthy     *prometheus.GaugeVec
-	lastRestart     *prometheus.GaugeVec
-	server          *http.Server
+	config                *config.Config
+	getNodeStatuses       NodeStatusProvider
+	registry              *prometheus.Registry
+	nodeAPR               *prometheus.GaugeVec
+	nodeJailed            *prometheus.GaugeVec
+	nodeOnline            *prometheus.GaugeVec
+	nodeQueries24Hours    *prometheus.GaugeVec
+	nodeUptime24Hours     *prometheus.GaugeVec
+	nodeVersion           *prometheus.GaugeVec
+	nodeServedData24Hours *prometheus.GaugeVec
+	nodeStoredData        *prometheus.GaugeVec
+	nodeTotalDelegation   *prometheus.GaugeVec
+	nodeClaimedReward     *prometheus.GaugeVec
+	nodeClaimableReward   *prometheus.GaugeVec
+	nodeLocalStatus       *prometheus.GaugeVec
+	nodeHealthy           *prometheus.GaugeVec
+	lastRestart           *prometheus.GaugeVec
+	server                *http.Server
 }
 
 // NewPrometheusExporter creates a new Prometheus exporter
@@ -55,6 +63,62 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 			prometheus.GaugeOpts{
 				Name: "sqd_node_online",
 				Help: "Whether the SQD node is online (1) or not (0)",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeQueries24Hours: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_queries_24h",
+				Help: "Number of queries made to the SQD node in the last 24 hours",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeUptime24Hours: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_uptime_24h",
+				Help: "Uptime of the SQD node in the last 24 hours",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeVersion: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_version",
+				Help: "Version of the SQD node",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeServedData24Hours: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_served_data_24h",
+				Help: "Number of bytes served by the SQD node in the last 24 hours",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeStoredData: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_stored_data",
+				Help: "Number of bytes stored by the SQD node",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeTotalDelegation: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_total_delegation",
+				Help: "Total delegation to the SQD node",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeClaimedReward: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_claimed_reward",
+				Help: "Number of rewards claimed by the SQD node",
+			},
+			[]string{"instance", "peer_id", "name"},
+		),
+		nodeClaimableReward: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_claimable_reward",
+				Help: "Number of rewards claimable by the SQD node",
 			},
 			[]string{"instance", "peer_id", "name"},
 		),
@@ -88,6 +152,14 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 	registry.MustRegister(exporter.nodeLocalStatus)
 	registry.MustRegister(exporter.nodeHealthy)
 	registry.MustRegister(exporter.lastRestart)
+	registry.MustRegister(exporter.nodeQueries24Hours)
+	registry.MustRegister(exporter.nodeUptime24Hours)
+	registry.MustRegister(exporter.nodeVersion)
+	registry.MustRegister(exporter.nodeServedData24Hours)
+	registry.MustRegister(exporter.nodeStoredData)
+	registry.MustRegister(exporter.nodeTotalDelegation)
+	registry.MustRegister(exporter.nodeClaimedReward)
+	registry.MustRegister(exporter.nodeClaimableReward)
 
 	return exporter
 }
@@ -169,6 +241,14 @@ func (e *PrometheusExporter) UpdateMetrics() {
 	e.nodeLocalStatus.Reset()
 	e.nodeHealthy.Reset()
 	e.lastRestart.Reset()
+	e.nodeQueries24Hours.Reset()
+	e.nodeUptime24Hours.Reset()
+	e.nodeVersion.Reset()
+	e.nodeServedData24Hours.Reset()
+	e.nodeStoredData.Reset()
+	e.nodeTotalDelegation.Reset()
+	e.nodeClaimedReward.Reset()
+	e.nodeClaimableReward.Reset()
 
 	// Update metrics for each node
 	for instance, status := range statuses {
