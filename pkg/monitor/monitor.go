@@ -339,15 +339,31 @@ func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
 
 // GetNodeStatuses returns a copy of the current node statuses
 func (m *Monitor) GetNodeStatuses() map[string]*NodeStatus {
-	m.nodesMu.RLock()
-	defer m.nodesMu.RUnlock()
-	log.Debugf("Running GetNodeStatuses")
-	result := make(map[string]*NodeStatus, len(m.nodes))
-	for k, v := range m.nodes {
-		// Create a copy of the status to avoid external modification of our internal state
-		statusCopy := *v
-		result[k] = &statusCopy
+	log.Debug("Attempting to acquire read lock for GetNodeStatuses")
+
+	// Try to acquire the read lock with a timeout
+	lockAcquired := make(chan bool, 1)
+	go func() {
+		m.nodesMu.RLock()
+		lockAcquired <- true
+	}()
+
+	select {
+	case <-lockAcquired:
+		defer m.nodesMu.RUnlock()
+		log.Debug("Successfully acquired read lock for GetNodeStatuses")
+
+		result := make(map[string]*NodeStatus, len(m.nodes))
+		for k, v := range m.nodes {
+			// Create a copy of the status to avoid external modification of our internal state
+			statusCopy := *v
+			result[k] = &statusCopy
+		}
+
+		log.Debugf("GetNodeStatuses returning %d nodes", len(result))
+		return result
+	case <-time.After(5 * time.Second):
+		log.Error("Timeout while trying to acquire read lock for GetNodeStatuses")
+		return nil
 	}
-	log.Debugf("GetNodeStatuses: %v", result)
-	return result
 }
