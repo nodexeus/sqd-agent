@@ -63,17 +63,17 @@ type GraphQLError struct {
 func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*NodeNetworkStatus, error) {
 	// This is a placeholder query - will be replaced with the actual query later
 	query := `
-	query MyQuery {
-	  workers(where: {peerId_eq: "$peerId"}) {
-        apr
-        name
-        online
-        jailed
-        jailReason
-        peerId
-      }
-    }
-`
+	query GetNodeStatus($peerId: String!) {
+		workers(where: {peerId_eq: "$peerId"}) {
+			apr
+			name
+			online
+			jailed
+			jailReason
+			peerId
+		}
+	}
+	`
 
 	variables := map[string]interface{}{
 		"peerId": peerID,
