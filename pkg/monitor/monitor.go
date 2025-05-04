@@ -120,14 +120,29 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	log.Debugf("Discovered %d nodes", len(nodes))
 
 	// Get network status for all nodes
-	var networkStatuses map[string]*api.NodeNetworkStatus
+	networkStatuses := make(map[string]*api.NodeNetworkStatus)
 	if m.apiClient.IsConnected() {
-		networkStatuses, err = m.apiClient.GetNodesNetworkStatus(ctx)
-		if err != nil {
-			log.Warnf("Failed to get network status: %v", err)
+		// For each discovered node with a peer ID, get its network status
+		for _, node := range nodes {
+			if node.PeerID == "" {
+				continue // Skip nodes without peer ID
+			}
+
+			status, err := m.apiClient.GetNodeStatus(ctx, node.PeerID)
+			if err != nil {
+				log.Warnf("Failed to get network status for node %s: %v", node.Instance, err)
+				continue
+			}
+
+			// Add to map of statuses
+			networkStatuses[node.PeerID] = status
+		}
+
+		if len(networkStatuses) == 0 && len(nodes) > 0 {
+			log.Warnf("Failed to get network status for any nodes")
 			if !m.apiClient.IsConnected() {
-				log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)", 
-					m.apiClient.GetLastError(), 
+				log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
+					m.apiClient.GetLastError(),
 					time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
 				log.Info("Will continue with local status only and retry connection on next check")
 			}
@@ -136,8 +151,8 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			log.Info("GraphQL API connection restored")
 		}
 	} else {
-		log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)", 
-			m.apiClient.GetLastError(), 
+		log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
+			m.apiClient.GetLastError(),
 			time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
 		log.Info("Will continue with local status only and retry connection on next check")
 	}

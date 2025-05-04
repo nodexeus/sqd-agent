@@ -1,14 +1,9 @@
 package updater
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"time"
 )
 
@@ -47,15 +42,15 @@ func NewUpdater(currentVersion string) (*Updater, error) {
 func (u *Updater) CheckForUpdates() (*ReleaseInfo, error) {
 	// In a real implementation, this would make an HTTP request to the release URL
 	// and parse the response to get the latest version
-	
+
 	// For demonstration purposes, we'll just return a fake release info
 	// This would be replaced with actual HTTP request and response parsing
-	
+
 	// Simulate no update available most of the time
 	if time.Now().Unix()%10 != 0 {
 		return nil, nil
 	}
-	
+
 	// Simulate a new version available
 	return &ReleaseInfo{
 		Version:     fmt.Sprintf("%s-next", u.currentVersion),
@@ -71,13 +66,13 @@ func (u *Updater) Update(releaseInfo *ReleaseInfo) error {
 	// 1. Download the new version
 	// 2. Verify the checksum
 	// 3. Replace the current executable or schedule replacement on next restart
-	
+
 	// For demonstration purposes, we'll just log the update
 	fmt.Printf("Updating to version %s from %s\n", releaseInfo.Version, u.currentVersion)
-	
+
 	// This is where you would implement the actual update logic
 	// For Linux, a common approach is to download the new binary to a temporary location,
 	// then use a shell script to replace the current binary on next restart
-	
+
 	return nil
 }
