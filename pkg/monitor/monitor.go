@@ -21,14 +21,14 @@ type NodeStatus struct {
 	Online            bool
 	Jailed            bool
 	JailReason        string
-	Queries24Hours    int
-	Uptime24Hours     int
+	Queries24Hours    int64
+	Uptime24Hours     int64
 	Version           string
-	ServedData24Hours int
-	StoredData        int
-	TotalDelegation   int
-	ClaimedReward     int
-	ClaimableReward   int
+	ServedData24Hours int64
+	StoredData        int64
+	TotalDelegation   int64
+	ClaimedReward     int64
+	ClaimableReward   int64
 	LastChecked       time.Time
 	LastRestart       time.Time
 	Healthy           bool

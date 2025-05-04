@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
@@ -20,14 +21,14 @@ type NodeNetworkStatus struct {
 	Online            bool    `json:"online"`
 	Jailed            bool    `json:"jailed"`
 	JailReason        string  `json:"jailReason"`
-	Queries24Hours    int     `json:"queries24Hours"`
-	Uptime24Hours     int     `json:"uptime24Hours"`
+	Queries24Hours    int64   `json:"queries24Hours"`
+	Uptime24Hours     int64   `json:"uptime24Hours"`
 	Version           string  `json:"version"`
-	ServedData24Hours int     `json:"servedData24Hours"`
-	StoredData        int     `json:"storedData"`
-	TotalDelegation   int     `json:"totalDelegation"`
-	ClaimedReward     int     `json:"claimedReward"`
-	ClaimableReward   int     `json:"claimableReward"`
+	ServedData24Hours int64   `json:"servedData24Hours"`
+	StoredData        int64   `json:"storedData"`
+	TotalDelegation   int64   `json:"totalDelegation"`
+	ClaimedReward     int64   `json:"claimedReward"`
+	ClaimableReward   int64   `json:"claimableReward"`
 }
 
 // GraphQLClient is a client for the SQD GraphQL API
@@ -200,29 +201,61 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	if jailReason, ok := worker["jailReason"].(string); ok {
 		status.JailReason = jailReason
 	}
-	if queries24Hours, ok := worker["queries24Hours"].(int); ok {
-		status.Queries24Hours = queries24Hours
+	if queries24Hours, ok := worker["queries24Hours"].(string); ok {
+		value, err := strconv.ParseInt(queries24Hours, 10, 64)
+		if err == nil {
+			status.Queries24Hours = value
+		}
+	} else if val, ok := worker["queries24Hours"].(float64); ok {
+		status.Queries24Hours = int64(val)
 	}
-	if uptime24Hours, ok := worker["uptime24Hours"].(int); ok {
-		status.Uptime24Hours = uptime24Hours
+	
+	if uptime24Hours, ok := worker["uptime24Hours"].(float64); ok {
+		status.Uptime24Hours = int64(uptime24Hours)
+	} else if str, ok := worker["uptime24Hours"].(string); ok {
+		value, err := strconv.ParseInt(str, 10, 64)
+		if err == nil {
+			status.Uptime24Hours = value
+		}
 	}
+	
 	if version, ok := worker["version"].(string); ok {
 		status.Version = version
 	}
-	if servedData24Hours, ok := worker["servedData24Hours"].(int); ok {
-		status.ServedData24Hours = servedData24Hours
+	
+	if servedData24Hours, ok := worker["servedData24Hours"].(string); ok {
+		value, err := strconv.ParseInt(servedData24Hours, 10, 64)
+		if err == nil {
+			status.ServedData24Hours = value
+		}
 	}
-	if storedData, ok := worker["storedData"].(int); ok {
-		status.StoredData = storedData
+	
+	if storedData, ok := worker["storedData"].(string); ok {
+		value, err := strconv.ParseInt(storedData, 10, 64)
+		if err == nil {
+			status.StoredData = value
+		}
 	}
-	if totalDelegation, ok := worker["totalDelegation"].(int); ok {
-		status.TotalDelegation = totalDelegation
+	
+	if totalDelegation, ok := worker["totalDelegation"].(string); ok {
+		value, err := strconv.ParseInt(totalDelegation, 10, 64)
+		if err == nil {
+			status.TotalDelegation = value
+		}
 	}
-	if claimedReward, ok := worker["claimedReward"].(int); ok {
-		status.ClaimedReward = claimedReward
+	
+	if claimedReward, ok := worker["claimedReward"].(string); ok {
+		value, err := strconv.ParseInt(claimedReward, 10, 64)
+		if err == nil {
+			status.ClaimedReward = value
+		}
 	}
-	if claimableReward, ok := worker["claimableReward"].(int); ok {
-		status.ClaimableReward = claimableReward
+	
+	if claimableReward, ok := worker["claimableReward"].(string); ok {
+		value, err := strconv.ParseInt(claimableReward, 10, 64)
+		if err == nil {
+			status.ClaimableReward = value
+		}
 	}
 
 	// If we got here, the request was successful
