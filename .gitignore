@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-sqd-agent
+/sqd-agent
 
 # Test binary, built with `go test -c`
 *.test
