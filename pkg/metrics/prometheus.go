@@ -131,9 +131,16 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 	log.Debug("Updating Prometheus metrics...")
 
-	// Get current node statuses
-	statuses := e.monitor.GetNodeStatuses()
+	// Log if monitor is nil
+	if e.monitor == nil {
+		log.Error("Prometheus exporter's monitor reference is nil!")
+		return
+	}
 
+	// Get current node statuses
+	log.Debug("Calling e.monitor.GetNodeStatuses()...")
+	statuses := e.monitor.GetNodeStatuses()
+	
 	// Log the number of statuses
 	log.Infof("Prometheus exporter: updating metrics with %d node statuses", len(statuses))
 
@@ -156,74 +163,81 @@ func (e *PrometheusExporter) UpdateMetrics() {
 	e.lastRestart.Reset()
 
 	// Update metrics for each node
-	for _, status := range statuses {
-		log.Debugf("Creating metrics for node: %s", status.Instance)
+	log.Debug("Starting to iterate through node statuses...")
+	if len(statuses) > 0 {
+		for instance, status := range statuses {
+			if status == nil {
+				log.Warnf("Found nil status for instance %s, skipping", instance)
+				continue
+			}
+			log.Debugf("Creating metrics for node: %s with peer ID: %s", status.Instance, status.PeerID)
 
-		labels := prometheus.Labels{
-			"instance": status.Instance,
-			"peer_id":  status.PeerID,
-			"name":     status.Name,
-		}
+			labels := prometheus.Labels{
+				"instance": status.Instance,
+				"peer_id":  status.PeerID,
+				"name":     status.Name,
+			}
 
-		// APR
-		e.nodeAPR.With(labels).Set(status.APR)
-		log.Debugf("Set APR metric for %s: %f", status.Instance, status.APR)
+			// APR
+			e.nodeAPR.With(labels).Set(status.APR)
+			log.Debugf("Set APR metric for %s: %f", status.Instance, status.APR)
 
-		// Jailed status
-		jailedLabels := prometheus.Labels{
-			"instance": status.Instance,
-			"peer_id":  status.PeerID,
-			"name":     status.Name,
-			"reason":   status.JailedReason,
-		}
-		if status.Jailed {
-			e.nodeJailed.With(jailedLabels).Set(1)
-			log.Debugf("Set jailed metric for %s: 1", status.Instance)
-		} else {
-			e.nodeJailed.With(jailedLabels).Set(0)
-			log.Debugf("Set jailed metric for %s: 0", status.Instance)
-		}
+			// Jailed status
+			jailedLabels := prometheus.Labels{
+				"instance": status.Instance,
+				"peer_id":  status.PeerID,
+				"name":     status.Name,
+				"reason":   status.JailedReason,
+			}
+			if status.Jailed {
+				e.nodeJailed.With(jailedLabels).Set(1)
+				log.Debugf("Set jailed metric for %s: 1", status.Instance)
+			} else {
+				e.nodeJailed.With(jailedLabels).Set(0)
+				log.Debugf("Set jailed metric for %s: 0", status.Instance)
+			}
 
-		// Online status
-		if status.Online {
-			e.nodeOnline.With(labels).Set(1)
-			log.Debugf("Set online metric for %s: 1", status.Instance)
-		} else {
-			e.nodeOnline.With(labels).Set(0)
-			log.Debugf("Set online metric for %s: 0", status.Instance)
-		}
+			// Online status
+			if status.Online {
+				e.nodeOnline.With(labels).Set(1)
+				log.Debugf("Set online metric for %s: 1", status.Instance)
+			} else {
+				e.nodeOnline.With(labels).Set(0)
+				log.Debugf("Set online metric for %s: 0", status.Instance)
+			}
 
-		// Local status
-		localStatusLabels := prometheus.Labels{
-			"instance": status.Instance,
-			"peer_id":  status.PeerID,
-			"name":     status.Name,
-			"status":   status.LocalStatus,
-		}
-		if status.LocalStatus == "running" {
-			e.nodeLocalStatus.With(localStatusLabels).Set(2)
-			log.Debugf("Set local status metric for %s: 2 (running)", status.Instance)
-		} else if status.LocalStatus == "stopped" {
-			e.nodeLocalStatus.With(localStatusLabels).Set(1)
-			log.Debugf("Set local status metric for %s: 1 (stopped)", status.Instance)
-		} else {
-			e.nodeLocalStatus.With(localStatusLabels).Set(0)
-			log.Debugf("Set local status metric for %s: 0 (failed)", status.Instance)
-		}
+			// Local status
+			localStatusLabels := prometheus.Labels{
+				"instance": status.Instance,
+				"peer_id":  status.PeerID,
+				"name":     status.Name,
+				"status":   status.LocalStatus,
+			}
+			if status.LocalStatus == "running" {
+				e.nodeLocalStatus.With(localStatusLabels).Set(2)
+				log.Debugf("Set local status metric for %s: 2 (running)", status.Instance)
+			} else if status.LocalStatus == "stopped" {
+				e.nodeLocalStatus.With(localStatusLabels).Set(1)
+				log.Debugf("Set local status metric for %s: 1 (stopped)", status.Instance)
+			} else {
+				e.nodeLocalStatus.With(localStatusLabels).Set(0)
+				log.Debugf("Set local status metric for %s: 0 (failed)", status.Instance)
+			}
 
-		// Healthy status
-		if status.Healthy {
-			e.nodeHealthy.With(labels).Set(1)
-			log.Debugf("Set healthy metric for %s: 1", status.Instance)
-		} else {
-			e.nodeHealthy.With(labels).Set(0)
-			log.Debugf("Set healthy metric for %s: 0", status.Instance)
-		}
+			// Healthy status
+			if status.Healthy {
+				e.nodeHealthy.With(labels).Set(1)
+				log.Debugf("Set healthy metric for %s: 1", status.Instance)
+			} else {
+				e.nodeHealthy.With(labels).Set(0)
+				log.Debugf("Set healthy metric for %s: 0", status.Instance)
+			}
 
-		// Last restart timestamp
-		if !status.LastRestart.IsZero() {
-			e.lastRestart.With(labels).Set(float64(status.LastRestart.Unix()))
-			log.Debugf("Set last restart metric for %s: %d", status.Instance, status.LastRestart.Unix())
+			// Last restart timestamp
+			if !status.LastRestart.IsZero() {
+				e.lastRestart.With(labels).Set(float64(status.LastRestart.Unix()))
+				log.Debugf("Set last restart metric for %s: %d", status.Instance, status.LastRestart.Unix())
+			}
 		}
 	}
 
