@@ -86,6 +86,9 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		Variables: variables,
 	})
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error marshaling GraphQL request: %w", err)
 	}
 
@@ -97,6 +100,9 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		bytes.NewBuffer(reqBody),
 	)
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error creating HTTP request: %w", err)
 	}
 
@@ -109,9 +115,17 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		c.lastError = err
 		c.lastErrorTime = time.Now()
 		c.connected = false
-		return nil, fmt.Errorf("error executing GraphQL request: %w", err)
+		return nil, fmt.Errorf("error executing HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		c.lastError = fmt.Errorf("unexpected HTTP status: %d", resp.StatusCode)
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return nil, fmt.Errorf("unexpected HTTP status: %d", resp.StatusCode)
+	}
 
 	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
@@ -128,7 +142,7 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		c.lastError = err
 		c.lastErrorTime = time.Now()
 		c.connected = false
-		return nil, fmt.Errorf("error unmarshaling GraphQL response: %w", err)
+		return nil, fmt.Errorf("error parsing GraphQL response: %w", err)
 	}
 
 	// Check for GraphQL errors
@@ -139,65 +153,26 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		return nil, fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
 	}
 
-	// Extract workers data
-	workersData, ok := graphQLResp.Data["workers"].([]interface{})
-	if !ok {
-		c.lastError = fmt.Errorf("unexpected response format: workers data not found or not an array")
+	// Extract node status from response
+	workers, ok := graphQLResp.Data["workers"].([]interface{})
+	if !ok || len(workers) == 0 {
+		c.lastError = fmt.Errorf("no worker found with peer ID %s", peerID)
 		c.lastErrorTime = time.Now()
 		c.connected = false
-		return nil, fmt.Errorf("unexpected response format: workers data not found or not an array")
+		return nil, fmt.Errorf("no worker found with peer ID %s", peerID)
 	}
 
-	// We expect at most one worker for a specific peer ID
-	if len(workersData) == 0 {
-		c.lastError = fmt.Errorf("no worker found with peer ID: %s", peerID)
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("no worker found with peer ID: %s", peerID)
+	worker := workers[0].(map[string]interface{})
+	status := &NodeNetworkStatus{
+		PeerID:       worker["peerId"].(string),
+		Name:         worker["name"].(string),
+		APR:          worker["apr"].(float64),
+		Online:       worker["online"].(bool),
+		Jailed:       worker["jailed"].(bool),
+		JailedReason: worker["jailReason"].(string),
 	}
 
-	// Get the first worker
-	workerData, ok := workersData[0].(map[string]interface{})
-	if !ok {
-		c.lastError = fmt.Errorf("unexpected response format: worker data is not an object")
-		c.lastErrorTime = time.Now()
-		c.connected = false
-		return nil, fmt.Errorf("unexpected response format: worker data is not an object")
-	}
-
-	// Parse the node data
-	status := &NodeNetworkStatus{}
-
-	// Extract peer ID
-	if peerID, ok := workerData["peerId"].(string); ok {
-		status.PeerID = peerID
-	}
-
-	// Extract name
-	if name, ok := workerData["name"].(string); ok {
-		status.Name = name
-	}
-
-	// Extract APR
-	if apr, ok := workerData["apr"].(float64); ok {
-		status.APR = apr
-	}
-
-	// Extract online status
-	if online, ok := workerData["online"].(bool); ok {
-		status.Online = online
-	}
-
-	// Extract jailed status
-	if jailed, ok := workerData["jailed"].(bool); ok {
-		status.Jailed = jailed
-	}
-
-	// Extract jailed reason
-	if jailedReason, ok := workerData["jailReason"].(string); ok {
-		status.JailedReason = jailedReason
-	}
-
+	// If we got here, the request was successful
 	c.lastError = nil
 	c.lastErrorTime = time.Time{}
 	c.connected = true

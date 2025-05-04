@@ -121,6 +121,21 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 	// Get network status for each node
 	networkStatuses := make(map[string]*api.NodeNetworkStatus)
+
+	// Test GraphQL API connection if not connected
+	if !m.apiClient.IsConnected() {
+		log.Debug("GraphQL API connection not established, testing connection...")
+		if !m.apiClient.TestConnection(ctx) {
+			log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
+				m.apiClient.GetLastError(),
+				time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
+			log.Info("Will continue with local status only and retry connection on next check")
+		} else {
+			log.Info("Successfully established connection to GraphQL API")
+		}
+	}
+
+	// If we have a connection, fetch network status
 	if m.apiClient.IsConnected() {
 		log.Debug("GraphQL API is connected, fetching network status for discovered nodes")
 		for _, node := range nodes {
@@ -133,6 +148,11 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			status, err := m.apiClient.GetNodeStatus(ctx, node.PeerID)
 			if err != nil {
 				log.Errorf("Failed to get network status for node %s: %v", node.Instance, err)
+				// If we get an error, mark the connection as down and break the loop
+				if !m.apiClient.IsConnected() {
+					log.Warn("GraphQL API connection lost, will retry on next check")
+					break
+				}
 				continue
 			}
 
@@ -150,16 +170,6 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 					time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
 				log.Info("Will continue with local status only and retry connection on next check")
 			}
-		}
-	} else {
-		log.Debug("GraphQL API connection not established, testing connection...")
-		if !m.apiClient.TestConnection(ctx) {
-			log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
-				m.apiClient.GetLastError(),
-				time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
-			log.Info("Will continue with local status only and retry connection on next check")
-		} else {
-			log.Info("Successfully established connection to GraphQL API")
 		}
 	}
 
