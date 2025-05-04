@@ -21,14 +21,22 @@ import (
 
 var (
 	configPath = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
+	showVersion = flag.Bool("version", false, "Show version information and exit")
 	version    = "0.1.0" // This would be set during build
+	buildTime  = "unknown" // This would be set during build
 )
 
 func main() {
 	flag.Parse()
 
+	// Show version and exit if requested
+	if *showVersion {
+		fmt.Printf("SQD Agent v%s (built %s)\n", version, buildTime)
+		return
+	}
+
 	// Print version
-	fmt.Printf("SQD Agent v%s\n", version)
+	fmt.Printf("SQD Agent v%s (built %s)\n", version, buildTime)
 
 	// Load configuration
 	cfg, err := config.LoadConfig(*configPath)

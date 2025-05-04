@@ -2,15 +2,14 @@
 
 # Variables
 BINARY_NAME=sqd-agent
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-X main.buildTime=$(BUILD_TIME)"
 INSTALL_DIR=/usr/local/bin
 CONFIG_DIR=/etc/sqd-agent
 
 # Build the agent
 build:
-	@echo "Building $(BINARY_NAME) version $(VERSION)..."
+	@echo "Building $(BINARY_NAME)..."
 	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/sqd-agent
 
 # Install the agent
@@ -52,7 +51,7 @@ deb:
 	cp config.yaml.example build/deb/etc/sqd-agent/config.yaml
 	cp sqd-agent.service build/deb/etc/systemd/system/
 	echo "Package: sqd-agent" > build/deb/DEBIAN/control
-	echo "Version: $(VERSION)" >> build/deb/DEBIAN/control
+	echo "Version: 0.1.0" >> build/deb/DEBIAN/control
 	echo "Section: utils" >> build/deb/DEBIAN/control
 	echo "Priority: optional" >> build/deb/DEBIAN/control
 	echo "Architecture: amd64" >> build/deb/DEBIAN/control
@@ -63,5 +62,5 @@ deb:
 	echo "systemctl daemon-reload" >> build/deb/DEBIAN/postinst
 	echo "echo 'To start the service, run: systemctl enable --now sqd-agent'" >> build/deb/DEBIAN/postinst
 	chmod 755 build/deb/DEBIAN/postinst
-	dpkg-deb --build build/deb sqd-agent_$(VERSION)_amd64.deb
+	dpkg-deb --build build/deb sqd-agent_0.1.0_amd64.deb
 	rm -rf build/deb
