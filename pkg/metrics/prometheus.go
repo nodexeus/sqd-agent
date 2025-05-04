@@ -30,6 +30,7 @@ type PrometheusExporter struct {
 
 // NewPrometheusExporter creates a new Prometheus exporter
 func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvider) *PrometheusExporter {
+	// Create a new registry
 	registry := prometheus.NewRegistry()
 
 	exporter := &PrometheusExporter{
@@ -80,7 +81,7 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 		),
 	}
 
-	// Register metrics
+	// Register metrics with the registry
 	registry.MustRegister(exporter.nodeAPR)
 	registry.MustRegister(exporter.nodeJailed)
 	registry.MustRegister(exporter.nodeOnline)
@@ -103,7 +104,6 @@ func (e *PrometheusExporter) Start() error {
 	// Create handler with the registry
 	handler := promhttp.HandlerFor(e.registry, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
-		Registry:          e.registry,
 	})
 
 	mux.Handle(e.config.Prometheus.Path, handler)
