@@ -344,6 +344,91 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 	return result, nil
 }
 
+// TestConnection tests the connection to the GraphQL endpoint
+// Returns true if the connection is successful
+func (c *GraphQLClient) TestConnection(ctx context.Context) bool {
+	// A simple introspection query to test the connection
+	query := `{ __schema { queryType { name } } }`
+
+	// Create the request
+	reqBody, err := json.Marshal(GraphQLRequest{
+		Query: query,
+	})
+	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.config.GraphQL.Endpoint,
+		bytes.NewBuffer(reqBody),
+	)
+	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+
+	// Execute the request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		c.lastError = fmt.Errorf("unexpected HTTP status: %d", resp.StatusCode)
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+
+	// Read the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+
+	// Parse the response
+	var graphQLResp GraphQLResponse
+	if err := json.Unmarshal(body, &graphQLResp); err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+
+	// Check for GraphQL errors
+	if len(graphQLResp.Errors) > 0 {
+		c.lastError = fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
+		c.lastErrorTime = time.Now()
+		c.connected = false
+		return false
+	}
+
+	// If we got here, the connection is working
+	c.lastError = nil
+	c.lastErrorTime = time.Time{}
+	c.connected = true
+	return true
+}
+
 // GetConnectionStatus returns the current connection status
 func (c *GraphQLClient) GetConnectionStatus() (bool, error, time.Time) {
 	return c.connected, c.lastError, c.lastErrorTime

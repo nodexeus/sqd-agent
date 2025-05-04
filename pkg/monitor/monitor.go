@@ -121,6 +121,15 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 	// Get network status for all nodes
 	networkStatuses := make(map[string]*api.NodeNetworkStatus)
+
+	// Proactively test the connection if not already connected
+	if !m.apiClient.IsConnected() {
+		log.Debug("GraphQL API connection not established, testing connection...")
+		if m.apiClient.TestConnection(ctx) {
+			log.Info("Successfully established connection to GraphQL API")
+		}
+	}
+
 	if m.apiClient.IsConnected() {
 		// For each discovered node with a peer ID, get its network status
 		for _, node := range nodes {
