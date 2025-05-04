@@ -1,0 +1,35 @@
+# SQD Agent Configuration
+
+# General settings
+logLevel: "info"
+monitorPeriod: "5m"  # How often to check node status
+actionPeriod: "6h"   # How often to take action on unhealthy nodes
+passiveMode: false   # If true, only monitor and don't take actions
+autoUpdate: true     # Automatically update the agent when new versions are available
+
+# Notification settings
+notifications:
+  enabled: true
+  webhookEnabled: false
+  webhookUrl: "https://example.com/webhook"
+  discordEnabled: false
+  discordWebhooks:
+    - name: "alerts"
+      url: "https://discord.com/api/webhooks/your-webhook-url"
+
+# Prometheus metrics settings
+prometheus:
+  enabled: true
+  port: 9090
+  path: "/metrics"
+
+# GraphQL API settings
+graphql:
+  endpoint: "https://placeholder-graphql-endpoint.com"
+
+# Custom commands
+commands:
+  discoverNodes: "apptainer instance list -j | jq -r '.instances[]| .instance'"
+  getNodePeerID: "bv node run address"
+  restartNode: "bv node restart"
+  getNodeStatus: "bv node status"

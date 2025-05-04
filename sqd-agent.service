@@ -1,0 +1,18 @@
+[Unit]
+Description=SQD Node Monitoring Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/sqd-agent
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Make sure the config directory exists
+ExecStartPre=/bin/mkdir -p /etc/sqd-agent
+
+[Install]
+WantedBy=multi-user.target

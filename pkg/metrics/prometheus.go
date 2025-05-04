@@ -1,0 +1,194 @@
+package metrics
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/nodexeus/sqd-agent/pkg/config"
+	"github.com/nodexeus/sqd-agent/pkg/monitor"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+// PrometheusExporter exports metrics to Prometheus
+type PrometheusExporter struct {
+	config        *config.Config
+	monitor       *monitor.Monitor
+	registry      *prometheus.Registry
+	nodeAPR       *prometheus.GaugeVec
+	nodeJailed    *prometheus.GaugeVec
+	nodeOnline    *prometheus.GaugeVec
+	nodeLocalStatus *prometheus.GaugeVec
+	nodeHealthy   *prometheus.GaugeVec
+	lastRestart   *prometheus.GaugeVec
+	server        *http.Server
+}
+
+// NewPrometheusExporter creates a new Prometheus exporter
+func NewPrometheusExporter(cfg *config.Config, mon *monitor.Monitor) *PrometheusExporter {
+	registry := prometheus.NewRegistry()
+
+	exporter := &PrometheusExporter{
+		config:  cfg,
+		monitor: mon,
+		registry: registry,
+		nodeAPR: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_apr",
+				Help: "Annual Percentage Rate (APR) of the SQD node",
+			},
+			[]string{"instance", "peer_id"},
+		),
+		nodeJailed: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_jailed",
+				Help: "Whether the SQD node is jailed (1) or not (0)",
+			},
+			[]string{"instance", "peer_id", "reason"},
+		),
+		nodeOnline: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_online",
+				Help: "Whether the SQD node is online (1) or not (0)",
+			},
+			[]string{"instance", "peer_id"},
+		),
+		nodeLocalStatus: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_local_status",
+				Help: "Local status of the SQD node (1=running, 0=not running)",
+			},
+			[]string{"instance", "peer_id", "status"},
+		),
+		nodeHealthy: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_healthy",
+				Help: "Whether the SQD node is healthy (1) or not (0)",
+			},
+			[]string{"instance", "peer_id"},
+		),
+		lastRestart: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_node_last_restart_timestamp",
+				Help: "Timestamp of the last restart attempt for the SQD node",
+			},
+			[]string{"instance", "peer_id"},
+		),
+	}
+
+	// Register metrics
+	registry.MustRegister(exporter.nodeAPR)
+	registry.MustRegister(exporter.nodeJailed)
+	registry.MustRegister(exporter.nodeOnline)
+	registry.MustRegister(exporter.nodeLocalStatus)
+	registry.MustRegister(exporter.nodeHealthy)
+	registry.MustRegister(exporter.lastRestart)
+
+	return exporter
+}
+
+// Start starts the Prometheus exporter HTTP server
+func (e *PrometheusExporter) Start() error {
+	if !e.config.Prometheus.Enabled {
+		return nil
+	}
+
+	// Create HTTP server
+	mux := http.NewServeMux()
+	mux.Handle(e.config.Prometheus.Path, promhttp.HandlerFor(e.registry, promhttp.HandlerOpts{}))
+
+	e.server = &http.Server{
+		Addr:    fmt.Sprintf(":%d", e.config.Prometheus.Port),
+		Handler: mux,
+	}
+
+	// Start HTTP server in a goroutine
+	go func() {
+		if err := e.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Error starting Prometheus HTTP server: %v\n", err)
+		}
+	}()
+
+	fmt.Printf("Prometheus metrics server started on port %d\n", e.config.Prometheus.Port)
+	return nil
+}
+
+// Stop stops the Prometheus exporter HTTP server
+func (e *PrometheusExporter) Stop() error {
+	if e.server != nil {
+		return e.server.Close()
+	}
+	return nil
+}
+
+// UpdateMetrics updates the Prometheus metrics based on the current node statuses
+func (e *PrometheusExporter) UpdateMetrics() {
+	if !e.config.Prometheus.Enabled {
+		return
+	}
+
+	// Get current node statuses
+	statuses := e.monitor.GetNodeStatuses()
+
+	// Reset metrics to avoid stale data
+	e.nodeAPR.Reset()
+	e.nodeJailed.Reset()
+	e.nodeOnline.Reset()
+	e.nodeLocalStatus.Reset()
+	e.nodeHealthy.Reset()
+	e.lastRestart.Reset()
+
+	// Update metrics for each node
+	for _, status := range statuses {
+		labels := prometheus.Labels{
+			"instance": status.Instance,
+			"peer_id":  status.PeerID,
+		}
+
+		// APR
+		e.nodeAPR.With(labels).Set(status.APR)
+
+		// Jailed status
+		jailedLabels := prometheus.Labels{
+			"instance": status.Instance,
+			"peer_id":  status.PeerID,
+			"reason":   status.JailedReason,
+		}
+		if status.Jailed {
+			e.nodeJailed.With(jailedLabels).Set(1)
+		} else {
+			e.nodeJailed.With(jailedLabels).Set(0)
+		}
+
+		// Online status
+		if status.Online {
+			e.nodeOnline.With(labels).Set(1)
+		} else {
+			e.nodeOnline.With(labels).Set(0)
+		}
+
+		// Local status
+		localStatusLabels := prometheus.Labels{
+			"instance": status.Instance,
+			"peer_id":  status.PeerID,
+			"status":   status.LocalStatus,
+		}
+		if status.LocalStatus == "running" {
+			e.nodeLocalStatus.With(localStatusLabels).Set(1)
+		} else {
+			e.nodeLocalStatus.With(localStatusLabels).Set(0)
+		}
+
+		// Healthy status
+		if status.Healthy {
+			e.nodeHealthy.With(labels).Set(1)
+		} else {
+			e.nodeHealthy.With(labels).Set(0)
+		}
+
+		// Last restart timestamp
+		if !status.LastRestart.IsZero() {
+			e.lastRestart.With(labels).Set(float64(status.LastRestart.Unix()))
+		}
+	}
+}
