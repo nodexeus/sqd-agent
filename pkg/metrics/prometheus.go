@@ -103,7 +103,6 @@ func (e *PrometheusExporter) Start() error {
 	// Create handler with the registry
 	handler := promhttp.HandlerFor(e.registry, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
-		Registry:          e.registry,
 	})
 
 	mux.Handle(e.config.Prometheus.Path, handler)
@@ -152,13 +151,15 @@ func (e *PrometheusExporter) UpdateMetrics() {
 	// Log the number of statuses
 	log.Infof("Prometheus exporter: updating metrics with %d node statuses", len(statuses))
 
-	// Reset metrics to avoid stale data
-	e.nodeAPR.Reset()
-	e.nodeJailed.Reset()
-	e.nodeOnline.Reset()
-	e.nodeLocalStatus.Reset()
-	e.nodeHealthy.Reset()
-	e.lastRestart.Reset()
+	// Debug logging to show actual statuses if present
+	if len(statuses) > 0 {
+		for instance, status := range statuses {
+			log.Debugf("Node status for metrics: instance=%s, peerID=%s, name=%s, healthy=%v, local=%s, online=%v, jailed=%v, apr=%f",
+				instance, status.PeerID, status.Name, status.Healthy, status.LocalStatus, status.Online, status.Jailed, status.APR)
+		}
+	} else {
+		log.Warn("No node statuses available for metrics update - check monitor.GetNodeStatuses()")
+	}
 
 	// Update metrics for each node
 	for instance, status := range statuses {
@@ -233,6 +234,11 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			e.lastRestart.With(labels).Set(float64(status.LastRestart.Unix()))
 			log.Debugf("Set last restart metric for %s: %d", status.Instance, status.LastRestart.Unix())
 		}
+	}
+
+	// Force a metrics collection to ensure the metrics are exposed
+	if _, err := e.registry.Gather(); err != nil {
+		log.Errorf("Error gathering metrics: %v", err)
 	}
 
 	log.Info("Prometheus metrics update completed")

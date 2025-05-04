@@ -125,6 +125,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		log.Debug("GraphQL API is connected, fetching network status for discovered nodes")
 		for _, node := range nodes {
 			if node.PeerID == "" {
+				log.Debugf("Skipping network status for node %s: no peer ID", node.Instance)
 				continue
 			}
 
@@ -139,6 +140,16 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				node.Instance, status.Online, status.Jailed, status.JailedReason, status.Name, status.APR, status.PeerID)
 
 			networkStatuses[node.PeerID] = status
+		}
+
+		if len(networkStatuses) == 0 && len(nodes) > 0 {
+			log.Warnf("Failed to get network status for any nodes")
+			if !m.apiClient.IsConnected() {
+				log.Warnf("GraphQL API connection is down. Last error: %v (occurred %s ago)",
+					m.apiClient.GetLastError(),
+					time.Since(m.apiClient.GetLastErrorTime()).Round(time.Second))
+				log.Info("Will continue with local status only and retry connection on next check")
+			}
 		}
 	} else {
 		log.Debug("GraphQL API connection not established, testing connection...")
