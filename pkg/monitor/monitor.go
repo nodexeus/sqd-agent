@@ -173,32 +173,28 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		}
 	}
 
-	// Update node statuses
-	m.nodesMu.Lock()
-	defer m.nodesMu.Unlock()
-
 	// Create a map to track which nodes we've seen in this discovery
 	discoveredInstances := make(map[string]bool)
-
 	for _, node := range nodes {
 		discoveredInstances[node.Instance] = true
+	}
 
+	// Prepare all updates before acquiring the lock
+	updates := make(map[string]*NodeStatus)
+	unhealthyNodes := make(map[string]string) // instance -> reason
+
+	for _, node := range nodes {
 		// Get or create node status
-		status, exists := m.nodes[node.Instance]
-		if !exists {
-			status = &NodeStatus{
-				Instance:    node.Instance,
-				PeerID:      node.PeerID,
-				Name:        node.Name,
-				LastChecked: time.Now(),
-			}
-			m.nodes[node.Instance] = status
+		status := &NodeStatus{
+			Instance:    node.Instance,
+			PeerID:      node.PeerID,
+			Name:        node.Name,
+			LastChecked: time.Now(),
 		}
 
 		// Update local status
 		status.LocalStatus = node.LocalStatus
-		status.PeerID = node.PeerID // Update in case it changed
-		status.LastChecked = time.Now()
+		status.PeerID = node.PeerID
 
 		// Update network status if we have a peer ID
 		if status.PeerID != "" {
@@ -207,17 +203,37 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				status.Online = networkStatus.Online
 				status.Jailed = networkStatus.Jailed
 				status.JailReason = networkStatus.JailReason
-				status.Name = networkStatus.Name // Update name from network status
+				status.Name = networkStatus.Name
 			}
 		}
 
 		// Determine if the node is healthy
-		wasHealthy := status.Healthy
 		status.Healthy = m.isNodeHealthy(status)
+		if !status.Healthy {
+			unhealthyNodes[status.Instance] = m.getUnhealthyReason(status)
+		}
+
+		updates[node.Instance] = status
+	}
+
+	// Now acquire the lock and update everything at once
+	m.nodesMu.Lock()
+	defer m.nodesMu.Unlock()
+
+	// Update all nodes
+	for instance, status := range updates {
+		// Check if node was previously healthy
+		wasHealthy := true
+		if existing, ok := m.nodes[instance]; ok {
+			wasHealthy = existing.Healthy
+			status.LastRestart = existing.LastRestart
+		}
+
+		m.nodes[instance] = status
 
 		// Notify if node became unhealthy
 		if wasHealthy && !status.Healthy {
-			reason := m.getUnhealthyReason(status)
+			reason := unhealthyNodes[instance]
 			for _, notifier := range m.notifiers {
 				if err := notifier.NotifyNodeUnhealthy(status, reason); err != nil {
 					log.Errorf("Error sending unhealthy notification: %v", err)
