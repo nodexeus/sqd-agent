@@ -70,7 +70,7 @@ type CommandsConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		LogLevel:      "info",
-		MonitorPeriod: 5 * time.Minute,
+		MonitorPeriod: 1 * time.Minute,
 		ActionPeriod:  6 * time.Hour,
 		PassiveMode:   false,
 		AutoUpdate:    true,
@@ -88,7 +88,7 @@ func DefaultConfig() *Config {
 			Endpoint: "https://placeholder-graphql-endpoint.com",
 		},
 		Commands: CommandsConfig{
-			DiscoverNodes: "apptainer instance list -j | jq -r '.instances[]| .instance'",
+			DiscoverNodes: "bv node ls",
 			GetNodePeerID: "bv node run address",
 			RestartNode:   "bv node restart",
 			GetNodeStatus: "bv node status",

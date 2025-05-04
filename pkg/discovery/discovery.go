@@ -42,34 +42,18 @@ func (d *Discoverer) DiscoverNodes() ([]NodeInfo, error) {
 	}
 	
 	// Parse the output to get instance names
-	instances := parseInstanceList(stdout.String())
+	nodes := parseInstanceList(stdout.String())
 	
 	// Get additional information for each instance
-	nodes := make([]NodeInfo, 0, len(instances))
-	for _, instance := range instances {
-		node := NodeInfo{
-			Instance: instance,
-		}
-		
+	for i, node := range nodes {
 		// Get peer ID
-		peerID, err := d.getNodePeerID(instance)
+		peerID, err := d.getNodePeerID(node.Instance)
 		if err != nil {
 			// Log but continue with other nodes
-			fmt.Printf("Warning: failed to get peer ID for instance %s: %v\n", instance, err)
+			fmt.Printf("Warning: failed to get peer ID for instance %s: %v\n", node.Instance, err)
 		} else {
-			node.PeerID = peerID
+			nodes[i].PeerID = peerID
 		}
-		
-		// Get local status
-		status, err := d.getNodeStatus(instance)
-		if err != nil {
-			// Log but continue with other nodes
-			fmt.Printf("Warning: failed to get status for instance %s: %v\n", instance, err)
-		} else {
-			node.LocalStatus = status
-		}
-		
-		nodes = append(nodes, node)
 	}
 	
 	return nodes, nil
@@ -126,15 +110,76 @@ func (d *Discoverer) RestartNode(instance string) error {
 }
 
 // parseInstanceList parses the output of the discover nodes command
-func parseInstanceList(output string) []string {
+func parseInstanceList(output string) []NodeInfo {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
-	var instances []string
+	var nodes []NodeInfo
 	
-	for _, line := range lines {
-		if line != "" {
-			instances = append(instances, strings.TrimSpace(line))
-		}
+	// Skip the header lines (first two lines and last line)
+	if len(lines) <= 3 {
+		return nodes
 	}
 	
-	return instances
+	// Process each line (skipping header and footer)
+	for i := 2; i < len(lines)-1; i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		
+		// Split the line by whitespace, but preserve quoted strings
+		fields := splitFields(line)
+		if len(fields) < 4 {
+			fmt.Printf("Warning: unexpected format in node list line: %s\n", line)
+			continue
+		}
+		
+		// Extract node information
+		// Format: ID Name Image State IP Uptime
+		nodeID := fields[0]
+		nodeName := fields[1]
+		nodeState := strings.ToLower(fields[3]) // Convert to lowercase for consistency
+		
+		// Create NodeInfo
+		node := NodeInfo{
+			Instance:    nodeID,
+			Name:        nodeName,
+			LocalStatus: nodeState,
+		}
+		
+		nodes = append(nodes, node)
+	}
+	
+	return nodes
+}
+
+// splitFields splits a line by whitespace, but preserves quoted strings
+func splitFields(line string) []string {
+	var fields []string
+	var currentField strings.Builder
+	inQuotes := false
+	
+	// Add a space at the end to ensure the last field is processed
+	line = line + " "
+	
+	for i := 0; i < len(line); i++ {
+		char := line[i]
+		
+		if char == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+		
+		if char == ' ' && !inQuotes {
+			// End of field
+			if currentField.Len() > 0 {
+				fields = append(fields, currentField.String())
+				currentField.Reset()
+			}
+			continue
+		}
+		
+		currentField.WriteByte(char)
+	}
+	
+	return fields
 }
