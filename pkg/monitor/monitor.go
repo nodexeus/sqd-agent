@@ -146,8 +146,8 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				continue
 			}
 
-			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v",
-				node.Instance, status.Online, status.Jailed)
+			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailedReason=%v, name=%v, apr=%v, peerID=%v",
+				node.Instance, status.Online, status.Jailed, status.JailedReason, status.Name, status.APR, status.PeerID)
 
 			// Add to map of statuses
 			networkStatuses[node.PeerID] = status
