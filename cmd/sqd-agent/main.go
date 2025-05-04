@@ -73,12 +73,22 @@ func main() {
 	// Create metrics exporter
 	var prometheusExporter *metrics.PrometheusExporter
 	if cfg.Prometheus.Enabled {
-		prometheusExporter = metrics.NewPrometheusExporter(cfg, mon)
+		// Create a status provider function that avoids circular dependencies
+		statusFn := func() map[string]*monitor.NodeStatus {
+			return mon.GetNodeStatuses()
+		}
+		
+		// Create the exporter with the function instead of direct reference
+		prometheusExporter = metrics.NewPrometheusExporter(cfg, statusFn)
+		
 		if err := prometheusExporter.Start(); err != nil {
 			log.Fatalf("Failed to start Prometheus exporter: %v", err)
 		}
+		
 		// Register the metrics exporter with the monitor
 		mon.SetMetricsExporter(prometheusExporter)
+		
+		log.Info("Prometheus metrics exporter configured and started")
 	}
 
 	// Create updater

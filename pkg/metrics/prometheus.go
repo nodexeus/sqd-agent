@@ -11,10 +11,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// NodeStatusProvider is a function type for getting node statuses
+type NodeStatusProvider func() map[string]*monitor.NodeStatus
+
 // PrometheusExporter exports metrics to Prometheus
 type PrometheusExporter struct {
 	config          *config.Config
-	monitor         *monitor.Monitor
+	getNodeStatuses NodeStatusProvider
 	registry        *prometheus.Registry
 	nodeAPR         *prometheus.GaugeVec
 	nodeJailed      *prometheus.GaugeVec
@@ -26,13 +29,13 @@ type PrometheusExporter struct {
 }
 
 // NewPrometheusExporter creates a new Prometheus exporter
-func NewPrometheusExporter(cfg *config.Config, mon *monitor.Monitor) *PrometheusExporter {
+func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvider) *PrometheusExporter {
 	registry := prometheus.NewRegistry()
 
 	exporter := &PrometheusExporter{
-		config:   cfg,
-		monitor:  mon,
-		registry: registry,
+		config:          cfg,
+		getNodeStatuses: getNodeStatuses,
+		registry:        registry,
 		nodeAPR: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_apr",
@@ -131,15 +134,13 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 	log.Debug("Updating Prometheus metrics...")
 
-	// Log if monitor is nil
-	if e.monitor == nil {
-		log.Error("Prometheus exporter's monitor reference is nil!")
+	// Get current node statuses
+	log.Debug("Calling getNodeStatuses function...")
+	statuses := e.getNodeStatuses()
+	if statuses == nil {
+		log.Error("getNodeStatuses returned nil")
 		return
 	}
-
-	// Get current node statuses
-	log.Debug("Calling e.monitor.GetNodeStatuses()...")
-	statuses := e.monitor.GetNodeStatuses()
 	
 	// Log the number of statuses
 	log.Infof("Prometheus exporter: updating metrics with %d node statuses", len(statuses))
