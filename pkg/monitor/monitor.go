@@ -341,13 +341,13 @@ func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
 func (m *Monitor) GetNodeStatuses() map[string]*NodeStatus {
 	m.nodesMu.RLock()
 	defer m.nodesMu.RUnlock()
-
+	log.Debugf("Running GetNodeStatuses")
 	result := make(map[string]*NodeStatus, len(m.nodes))
 	for k, v := range m.nodes {
 		// Create a copy of the status to avoid external modification of our internal state
 		statusCopy := *v
 		result[k] = &statusCopy
 	}
-
+	log.Debugf("GetNodeStatuses: %v", result)
 	return result
 }
