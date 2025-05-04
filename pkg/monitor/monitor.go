@@ -212,6 +212,14 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				status.Jailed = networkStatus.Jailed
 				status.JailReason = networkStatus.JailReason
 				status.Name = networkStatus.Name
+				status.Queries24Hours = networkStatus.Queries24Hours
+				status.Uptime24Hours = networkStatus.Uptime24Hours
+				status.Version = networkStatus.Version
+				status.ServedData24Hours = networkStatus.ServedData24Hours
+				status.StoredData = networkStatus.StoredData
+				status.TotalDelegation = networkStatus.TotalDelegation
+				status.ClaimedReward = networkStatus.ClaimedReward
+				status.ClaimableReward = networkStatus.ClaimableReward
 			}
 		}
 
