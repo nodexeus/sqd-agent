@@ -297,6 +297,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			"peer_id":  status.PeerID,
 			"name":     status.Name,
 			"status":   status.LocalStatus,
+			"version":  status.Version,
 		}
 		if status.LocalStatus == "running" {
 			e.nodeLocalStatus.With(localStatusLabels).Set(2)
@@ -318,11 +319,60 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			log.Debugf("Set healthy metric for %s: 0", status.Instance)
 		}
 
+		// Queries24Hours
+		if status.Queries24Hours > 0 {
+			e.nodeQueries24Hours.With(labels).Set(float64(status.Queries24Hours))
+			log.Debugf("Set queries24Hours metric for %s: %d", status.Instance, status.Queries24Hours)
+		}
+
+		// Uptime24Hours
+		if status.Uptime24Hours > 0 {
+			e.nodeUptime24Hours.With(labels).Set(float64(status.Uptime24Hours))
+			log.Debugf("Set uptime24Hours metric for %s: %d", status.Instance, status.Uptime24Hours)
+		}
+
+		// // Version
+		// if status.Version != "" {
+		// 	e.nodeVersion.With(labels).Set(string(status.Version))
+		// 	log.Debugf("Set version metric for %s: %s", status.Instance, status.Version)
+		// }
+
+		// ServedData24Hours
+		if status.ServedData24Hours > 0 {
+			e.nodeServedData24Hours.With(labels).Set(float64(status.ServedData24Hours))
+			log.Debugf("Set servedData24Hours metric for %s: %d", status.Instance, status.ServedData24Hours)
+		}
+
+		// StoredData
+		if status.StoredData > 0 {
+			e.nodeStoredData.With(labels).Set(float64(status.StoredData))
+			log.Debugf("Set storedData metric for %s: %d", status.Instance, status.StoredData)
+		}
+
+		// TotalDelegation
+		if status.TotalDelegation > 0 {
+			e.nodeTotalDelegation.With(labels).Set(float64(status.TotalDelegation))
+			log.Debugf("Set totalDelegation metric for %s: %d", status.Instance, status.TotalDelegation)
+		}
+
+		// ClaimedReward
+		if status.ClaimedReward > 0 {
+			e.nodeClaimedReward.With(labels).Set(float64(status.ClaimedReward))
+			log.Debugf("Set claimedReward metric for %s: %d", status.Instance, status.ClaimedReward)
+		}
+
+		// ClaimableReward
+		if status.ClaimableReward > 0 {
+			e.nodeClaimableReward.With(labels).Set(float64(status.ClaimableReward))
+			log.Debugf("Set claimableReward metric for %s: %d", status.Instance, status.ClaimableReward)
+		}
+
 		// Last restart timestamp
 		if !status.LastRestart.IsZero() {
 			e.lastRestart.With(labels).Set(float64(status.LastRestart.Unix()))
 			log.Debugf("Set last restart metric for %s: %d", status.Instance, status.LastRestart.Unix())
 		}
+
 	}
 
 	log.Info("Prometheus metrics update completed")
