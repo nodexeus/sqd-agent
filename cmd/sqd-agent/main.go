@@ -22,7 +22,7 @@ import (
 var (
 	configPath = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
-	version    = "0.1.0" // This would be set during build
+	version    = "0.1.1" // This would be set during build
 	buildTime  = "unknown" // This would be set during build
 )
 
