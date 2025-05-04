@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/api"
 	"github.com/nodexeus/sqd-agent/pkg/config"
@@ -20,10 +19,10 @@ import (
 )
 
 var (
-	configPath = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
+	configPath  = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
-	version    = "0.1.2" // This would be set during build
-	buildTime  = "unknown" // This would be set during build
+	version     = "0.1.3"   // This would be set during build
+	buildTime   = "unknown" // This would be set during build
 )
 
 func main() {
