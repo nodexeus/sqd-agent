@@ -71,7 +71,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		LogLevel:      "info",
 		MonitorPeriod: 1 * time.Minute,
-		ActionPeriod:  6 * time.Hour,
+		ActionPeriod:  5 * time.Minute,
 		PassiveMode:   false,
 		AutoUpdate:    true,
 		Notifications: NotificationConfig{

@@ -81,7 +81,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 	// Start periodic monitoring
 	monitorTicker := time.NewTicker(m.config.MonitorPeriod)
-	actionTicker := time.NewTicker(m.config.ActionPeriod)
+	actionTicker := time.NewTicker(m.config.MonitorPeriod)
 
 	go func() {
 		for {
