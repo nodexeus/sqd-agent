@@ -131,17 +131,23 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	}
 
 	if m.apiClient.IsConnected() {
+		log.Debug("GraphQL API is connected, fetching network status for discovered nodes")
 		// For each discovered node with a peer ID, get its network status
 		for _, node := range nodes {
 			if node.PeerID == "" {
+				log.Debugf("Skipping network status for node %s: no peer ID", node.Instance)
 				continue // Skip nodes without peer ID
 			}
 
+			log.Debugf("Fetching network status for node %s with peer ID %s", node.Instance, node.PeerID)
 			status, err := m.apiClient.GetNodeStatus(ctx, node.PeerID)
 			if err != nil {
 				log.Warnf("Failed to get network status for node %s: %v", node.Instance, err)
 				continue
 			}
+
+			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v",
+				node.Instance, status.Online, status.Jailed)
 
 			// Add to map of statuses
 			networkStatuses[node.PeerID] = status

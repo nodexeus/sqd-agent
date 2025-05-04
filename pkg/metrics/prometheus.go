@@ -8,20 +8,21 @@ import (
 	"github.com/nodexeus/sqd-agent/pkg/monitor"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 )
 
 // PrometheusExporter exports metrics to Prometheus
 type PrometheusExporter struct {
-	config        *config.Config
-	monitor       *monitor.Monitor
-	registry      *prometheus.Registry
-	nodeAPR       *prometheus.GaugeVec
-	nodeJailed    *prometheus.GaugeVec
-	nodeOnline    *prometheus.GaugeVec
+	config          *config.Config
+	monitor         *monitor.Monitor
+	registry        *prometheus.Registry
+	nodeAPR         *prometheus.GaugeVec
+	nodeJailed      *prometheus.GaugeVec
+	nodeOnline      *prometheus.GaugeVec
 	nodeLocalStatus *prometheus.GaugeVec
-	nodeHealthy   *prometheus.GaugeVec
-	lastRestart   *prometheus.GaugeVec
-	server        *http.Server
+	nodeHealthy     *prometheus.GaugeVec
+	lastRestart     *prometheus.GaugeVec
+	server          *http.Server
 }
 
 // NewPrometheusExporter creates a new Prometheus exporter
@@ -29,8 +30,8 @@ func NewPrometheusExporter(cfg *config.Config, mon *monitor.Monitor) *Prometheus
 	registry := prometheus.NewRegistry()
 
 	exporter := &PrometheusExporter{
-		config:  cfg,
-		monitor: mon,
+		config:   cfg,
+		monitor:  mon,
 		registry: registry,
 		nodeAPR: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -129,6 +130,16 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 	// Get current node statuses
 	statuses := e.monitor.GetNodeStatuses()
+
+	// Debug logging to show number of statuses
+	log.Infof("Prometheus exporter: updating metrics with %d node statuses", len(statuses))
+
+	// Debug logging to show actual statuses if present
+	if len(statuses) > 0 {
+		for instance, status := range statuses {
+			log.Debugf("Node status for metrics: %s, PeerID: %s, Healthy: %v", instance, status.PeerID, status.Healthy)
+		}
+	}
 
 	// Reset metrics to avoid stale data
 	e.nodeAPR.Reset()
