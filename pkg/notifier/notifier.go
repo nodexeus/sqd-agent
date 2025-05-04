@@ -15,25 +15,29 @@ import (
 type WebhookNotifier struct {
 	config     *config.Config
 	httpClient *http.Client
+	hostname   string
 }
 
 // NewWebhookNotifier creates a new webhook notifier
-func NewWebhookNotifier(cfg *config.Config) *WebhookNotifier {
+func NewWebhookNotifier(cfg *config.Config, hostname string) *WebhookNotifier {
 	return &WebhookNotifier{
 		config: cfg,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		hostname: hostname,
 	}
 }
 
 // WebhookPayload represents the payload sent to the webhook
 type WebhookPayload struct {
-	Type      string      `json:"type"`
-	Timestamp time.Time   `json:"timestamp"`
-	Node      interface{} `json:"node"`
-	Message   string      `json:"message"`
-	Error     string      `json:"error,omitempty"`
+	Type            string      `json:"type"`
+	Timestamp       time.Time   `json:"timestamp"`
+	Node            interface{} `json:"node"`
+	Message         string      `json:"message"`
+	Error           string      `json:"error,omitempty"`
+	Server          string      `json:"server"`
+	UnhealthyReason string      `json:"unhealthyReason,omitempty"`
 }
 
 // NotifyNodeUnhealthy notifies that a node is unhealthy
@@ -43,59 +47,67 @@ func (n *WebhookNotifier) NotifyNodeUnhealthy(node *monitor.NodeStatus, reason s
 	}
 
 	payload := WebhookPayload{
-		Type:      "node_unhealthy",
-		Timestamp: time.Now(),
-		Node:      node,
-		Message:   fmt.Sprintf("Node %s is unhealthy: %s", node.Instance, reason),
+		Type:            "node_unhealthy",
+		Timestamp:       time.Now(),
+		Node:            node,
+		Message:         fmt.Sprintf("Node %s is unhealthy: %s", node.Instance, reason),
+		Server:          n.hostname,
+		UnhealthyReason: reason,
 	}
 
 	return n.sendWebhook(payload)
 }
 
 // NotifyNodeRestartAttempt notifies that a restart attempt is being made
-func (n *WebhookNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus) error {
+func (n *WebhookNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unhealthyReason string) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.WebhookEnabled {
 		return nil
 	}
 
 	payload := WebhookPayload{
-		Type:      "node_restart_attempt",
-		Timestamp: time.Now(),
-		Node:      node,
-		Message:   fmt.Sprintf("Attempting to restart node %s", node.Instance),
+		Type:            "node_restart_attempt",
+		Timestamp:       time.Now(),
+		Node:            node,
+		Message:         fmt.Sprintf("Attempting to restart node %s", node.Instance),
+		Server:          n.hostname,
+		UnhealthyReason: unhealthyReason,
 	}
 
 	return n.sendWebhook(payload)
 }
 
 // NotifyNodeRestartSuccess notifies that a restart was successful
-func (n *WebhookNotifier) NotifyNodeRestartSuccess(node *monitor.NodeStatus) error {
+func (n *WebhookNotifier) NotifyNodeRestartSuccess(node *monitor.NodeStatus, unhealthyReason string) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.WebhookEnabled {
 		return nil
 	}
 
 	payload := WebhookPayload{
-		Type:      "node_restart_success",
-		Timestamp: time.Now(),
-		Node:      node,
-		Message:   fmt.Sprintf("Successfully restarted node %s", node.Instance),
+		Type:            "node_restart_success",
+		Timestamp:       time.Now(),
+		Node:            node,
+		Message:         fmt.Sprintf("Successfully restarted node %s", node.Instance),
+		Server:          n.hostname,
+		UnhealthyReason: unhealthyReason,
 	}
 
 	return n.sendWebhook(payload)
 }
 
 // NotifyNodeRestartFailure notifies that a restart failed
-func (n *WebhookNotifier) NotifyNodeRestartFailure(node *monitor.NodeStatus, err error) error {
+func (n *WebhookNotifier) NotifyNodeRestartFailure(node *monitor.NodeStatus, unhealthyReason string, err error) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.WebhookEnabled {
 		return nil
 	}
 
 	payload := WebhookPayload{
-		Type:      "node_restart_failure",
-		Timestamp: time.Now(),
-		Node:      node,
-		Message:   fmt.Sprintf("Failed to restart node %s", node.Instance),
-		Error:     err.Error(),
+		Type:            "node_restart_failure",
+		Timestamp:       time.Now(),
+		Node:            node,
+		Message:         fmt.Sprintf("Failed to restart node %s", node.Instance),
+		Error:           err.Error(),
+		Server:          n.hostname,
+		UnhealthyReason: unhealthyReason,
 	}
 
 	return n.sendWebhook(payload)
@@ -129,15 +141,17 @@ func (n *WebhookNotifier) sendWebhook(payload WebhookPayload) error {
 type DiscordNotifier struct {
 	config     *config.Config
 	httpClient *http.Client
+	hostname   string
 }
 
 // NewDiscordNotifier creates a new Discord notifier
-func NewDiscordNotifier(cfg *config.Config) *DiscordNotifier {
+func NewDiscordNotifier(cfg *config.Config, hostname string) *DiscordNotifier {
 	return &DiscordNotifier{
 		config: cfg,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		hostname: hostname,
 	}
 }
 
@@ -177,7 +191,9 @@ func (n *DiscordNotifier) NotifyNodeUnhealthy(node *monitor.NodeStatus, reason s
 		Fields: []DiscordField{
 			{Name: "Instance", Value: node.Instance, Inline: true},
 			{Name: "Peer ID", Value: node.PeerID, Inline: true},
-			{Name: "Reason", Value: reason, Inline: false},
+			{Name: "SQD Name", Value: node.Name, Inline: false},
+			{Name: "Server", Value: n.hostname, Inline: true},
+			{Name: "🔥 Issues", Value: reason, Inline: false},
 			{Name: "Local Status", Value: node.LocalStatus, Inline: true},
 			{Name: "Online", Value: fmt.Sprintf("%v", node.Online), Inline: true},
 			{Name: "Jailed", Value: fmt.Sprintf("%v", node.Jailed), Inline: true},
@@ -195,7 +211,7 @@ func (n *DiscordNotifier) NotifyNodeUnhealthy(node *monitor.NodeStatus, reason s
 }
 
 // NotifyNodeRestartAttempt notifies that a restart attempt is being made
-func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus) error {
+func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unhealthyReason string) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.DiscordEnabled {
 		return nil
 	}
@@ -207,6 +223,9 @@ func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus) err
 		Fields: []DiscordField{
 			{Name: "Instance", Value: node.Instance, Inline: true},
 			{Name: "Peer ID", Value: node.PeerID, Inline: true},
+			{Name: "SQD Name", Value: node.Name, Inline: false},
+			{Name: "Server", Value: n.hostname, Inline: true},
+			{Name: "Reason", Value: unhealthyReason, Inline: false},
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
@@ -220,7 +239,7 @@ func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus) err
 }
 
 // NotifyNodeRestartSuccess notifies that a restart was successful
-func (n *DiscordNotifier) NotifyNodeRestartSuccess(node *monitor.NodeStatus) error {
+func (n *DiscordNotifier) NotifyNodeRestartSuccess(node *monitor.NodeStatus, unhealthyReason string) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.DiscordEnabled {
 		return nil
 	}
@@ -232,6 +251,9 @@ func (n *DiscordNotifier) NotifyNodeRestartSuccess(node *monitor.NodeStatus) err
 		Fields: []DiscordField{
 			{Name: "Instance", Value: node.Instance, Inline: true},
 			{Name: "Peer ID", Value: node.PeerID, Inline: true},
+			{Name: "SQD Name", Value: node.Name, Inline: false},
+			{Name: "Server", Value: n.hostname, Inline: true},
+			{Name: "Previous Issue", Value: unhealthyReason, Inline: false},
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
@@ -245,7 +267,7 @@ func (n *DiscordNotifier) NotifyNodeRestartSuccess(node *monitor.NodeStatus) err
 }
 
 // NotifyNodeRestartFailure notifies that a restart failed
-func (n *DiscordNotifier) NotifyNodeRestartFailure(node *monitor.NodeStatus, err error) error {
+func (n *DiscordNotifier) NotifyNodeRestartFailure(node *monitor.NodeStatus, unhealthyReason string, err error) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.DiscordEnabled {
 		return nil
 	}
@@ -257,6 +279,9 @@ func (n *DiscordNotifier) NotifyNodeRestartFailure(node *monitor.NodeStatus, err
 		Fields: []DiscordField{
 			{Name: "Instance", Value: node.Instance, Inline: true},
 			{Name: "Peer ID", Value: node.PeerID, Inline: true},
+			{Name: "SQD Name", Value: node.Name, Inline: false},
+			{Name: "Server", Value: n.hostname, Inline: true},
+			{Name: "Issue", Value: unhealthyReason, Inline: false},
 			{Name: "Error", Value: err.Error(), Inline: false},
 		},
 		Timestamp: time.Now().Format(time.RFC3339),

@@ -37,42 +37,42 @@ func NewPrometheusExporter(cfg *config.Config, mon *monitor.Monitor) *Prometheus
 				Name: "sqd_node_apr",
 				Help: "Annual Percentage Rate (APR) of the SQD node",
 			},
-			[]string{"instance", "peer_id"},
+			[]string{"instance", "peer_id", "name"},
 		),
 		nodeJailed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_jailed",
 				Help: "Whether the SQD node is jailed (1) or not (0)",
 			},
-			[]string{"instance", "peer_id", "reason"},
+			[]string{"instance", "peer_id", "name", "reason"},
 		),
 		nodeOnline: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_online",
 				Help: "Whether the SQD node is online (1) or not (0)",
 			},
-			[]string{"instance", "peer_id"},
+			[]string{"instance", "peer_id", "name"},
 		),
 		nodeLocalStatus: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_local_status",
 				Help: "Local status of the SQD node (1=running, 0=not running)",
 			},
-			[]string{"instance", "peer_id", "status"},
+			[]string{"instance", "peer_id", "name", "status"},
 		),
 		nodeHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_healthy",
 				Help: "Whether the SQD node is healthy (1) or not (0)",
 			},
-			[]string{"instance", "peer_id"},
+			[]string{"instance", "peer_id", "name"},
 		),
 		lastRestart: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_last_restart_timestamp",
 				Help: "Timestamp of the last restart attempt for the SQD node",
 			},
-			[]string{"instance", "peer_id"},
+			[]string{"instance", "peer_id", "name"},
 		),
 	}
 
@@ -143,6 +143,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		labels := prometheus.Labels{
 			"instance": status.Instance,
 			"peer_id":  status.PeerID,
+			"name":     status.Name,
 		}
 
 		// APR
@@ -152,6 +153,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		jailedLabels := prometheus.Labels{
 			"instance": status.Instance,
 			"peer_id":  status.PeerID,
+			"name":     status.Name,
 			"reason":   status.JailedReason,
 		}
 		if status.Jailed {
@@ -171,6 +173,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		localStatusLabels := prometheus.Labels{
 			"instance": status.Instance,
 			"peer_id":  status.PeerID,
+			"name":     status.Name,
 			"status":   status.LocalStatus,
 		}
 		if status.LocalStatus == "running" {

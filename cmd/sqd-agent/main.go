@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -37,6 +36,14 @@ func main() {
 		log.Printf("Warning: %v", err)
 	}
 
+	// Get system hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Printf("Warning: failed to get hostname: %v", err)
+		hostname = "unknown"
+	}
+	log.Printf("Running on host: %s", hostname)
+
 	// Create components
 	discoverer := discovery.NewDiscoverer(cfg)
 	apiClient := api.NewGraphQLClient(cfg)
@@ -45,12 +52,12 @@ func main() {
 	// Add notifiers
 	if cfg.Notifications.Enabled {
 		if cfg.Notifications.WebhookEnabled {
-			webhookNotifier := notifier.NewWebhookNotifier(cfg)
+			webhookNotifier := notifier.NewWebhookNotifier(cfg, hostname)
 			mon.AddNotifier(webhookNotifier)
 		}
 
 		if cfg.Notifications.DiscordEnabled {
-			discordNotifier := notifier.NewDiscordNotifier(cfg)
+			discordNotifier := notifier.NewDiscordNotifier(cfg, hostname)
 			mon.AddNotifier(discordNotifier)
 		}
 	}

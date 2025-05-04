@@ -11,8 +11,9 @@ import (
 
 // NodeInfo contains information about a discovered SQD node
 type NodeInfo struct {
-	Instance  string // Instance name
-	PeerID    string // Peer ID of the node
+	Instance    string // Instance name
+	PeerID      string // Peer ID of the node
+	Name        string // Name of the node from GraphQL
 	LocalStatus string // Local status (running, stopped, failed)
 }
 

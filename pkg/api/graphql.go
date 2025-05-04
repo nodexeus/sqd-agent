@@ -15,16 +15,20 @@ import (
 // NodeNetworkStatus represents the network status of a node from the GraphQL API
 type NodeNetworkStatus struct {
 	PeerID      string  `json:"peerId"`
+	Name        string  `json:"name"`
 	APR         float64 `json:"apr"`
 	Online      bool    `json:"online"`
 	Jailed      bool    `json:"jailed"`
-	JailedReason string  `json:"jailedReason"`
+	JailedReason string  `json:"jailReason"`
 }
 
 // GraphQLClient is a client for the SQD GraphQL API
 type GraphQLClient struct {
 	config     *config.Config
 	httpClient *http.Client
+	lastError  error
+	lastErrorTime time.Time
+	connected  bool
 }
 
 // NewGraphQLClient creates a new GraphQL client
@@ -34,6 +38,7 @@ func NewGraphQLClient(cfg *config.Config) *GraphQLClient {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		connected: false,
 	}
 }
 
@@ -61,6 +66,7 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	query GetNodeStatus($peerId: String!) {
 		node(peerId: $peerId) {
 			peerId
+			name
 			apr
 			online
 			jailed
@@ -99,6 +105,9 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	// Execute the request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error executing GraphQL request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -106,23 +115,35 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
 	// Parse the response
 	var graphQLResp GraphQLResponse
 	if err := json.Unmarshal(body, &graphQLResp); err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error unmarshaling GraphQL response: %w", err)
 	}
 
 	// Check for GraphQL errors
 	if len(graphQLResp.Errors) > 0 {
+		c.lastError = fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
 	}
 
 	// Extract node data
 	nodeData, ok := graphQLResp.Data["node"].(map[string]interface{})
 	if !ok {
+		c.lastError = fmt.Errorf("unexpected response format: node data not found")
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("unexpected response format: node data not found")
 	}
 
@@ -132,6 +153,11 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	// Extract peer ID
 	if peerID, ok := nodeData["peerId"].(string); ok {
 		status.PeerID = peerID
+	}
+
+	// Extract name
+	if name, ok := nodeData["name"].(string); ok {
+		status.Name = name
 	}
 
 	// Extract APR
@@ -154,6 +180,9 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		status.JailedReason = jailedReason
 	}
 
+	c.lastError = nil
+	c.lastErrorTime = time.Time{}
+	c.connected = true
 	return status, nil
 }
 
@@ -164,6 +193,7 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 	query GetAllNodesStatus {
 		nodes {
 			peerId
+			name
 			apr
 			online
 			jailed
@@ -177,6 +207,9 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 		Query: query,
 	})
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error marshaling GraphQL request: %w", err)
 	}
 
@@ -188,6 +221,9 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 		bytes.NewBuffer(reqBody),
 	)
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error creating HTTP request: %w", err)
 	}
 
@@ -197,6 +233,9 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 	// Execute the request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error executing GraphQL request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -204,23 +243,35 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
 	// Parse the response
 	var graphQLResp GraphQLResponse
 	if err := json.Unmarshal(body, &graphQLResp); err != nil {
+		c.lastError = err
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("error unmarshaling GraphQL response: %w", err)
 	}
 
 	// Check for GraphQL errors
 	if len(graphQLResp.Errors) > 0 {
+		c.lastError = fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("GraphQL error: %s", graphQLResp.Errors[0].Message)
 	}
 
 	// Extract nodes data
 	nodesData, ok := graphQLResp.Data["nodes"].([]interface{})
 	if !ok {
+		c.lastError = fmt.Errorf("unexpected response format: nodes data not found")
+		c.lastErrorTime = time.Now()
+		c.connected = false
 		return nil, fmt.Errorf("unexpected response format: nodes data not found")
 	}
 
@@ -240,6 +291,11 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 			continue
 		}
 		status.PeerID = peerID
+
+		// Extract name
+		if name, ok := nodeData["name"].(string); ok {
+			status.Name = name
+		}
 
 		// Extract APR
 		if apr, ok := nodeData["apr"].(float64); ok {
@@ -264,5 +320,28 @@ func (c *GraphQLClient) GetAllNodesStatus(ctx context.Context) (map[string]*Node
 		result[peerID] = status
 	}
 
+	c.lastError = nil
+	c.lastErrorTime = time.Time{}
+	c.connected = true
 	return result, nil
+}
+
+// GetConnectionStatus returns the current connection status
+func (c *GraphQLClient) GetConnectionStatus() (bool, error, time.Time) {
+	return c.connected, c.lastError, c.lastErrorTime
+}
+
+// IsConnected returns whether the client is currently connected
+func (c *GraphQLClient) IsConnected() bool {
+	return c.connected
+}
+
+// GetLastError returns the last error encountered
+func (c *GraphQLClient) GetLastError() error {
+	return c.lastError
+}
+
+// GetLastErrorTime returns the time of the last error
+func (c *GraphQLClient) GetLastErrorTime() time.Time {
+	return c.lastErrorTime
 }
