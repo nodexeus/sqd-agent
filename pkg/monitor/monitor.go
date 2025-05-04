@@ -28,12 +28,13 @@ type NodeStatus struct {
 
 // Monitor is responsible for monitoring SQD nodes
 type Monitor struct {
-	config     *config.Config
-	discoverer *discovery.Discoverer
-	apiClient  *api.GraphQLClient
-	nodes      map[string]*NodeStatus // Map of instance name to node status
-	nodesMu    sync.RWMutex           // Mutex for thread-safe access to nodes map
-	notifiers  []Notifier
+	config          *config.Config
+	discoverer      *discovery.Discoverer
+	apiClient       *api.GraphQLClient
+	nodes           map[string]*NodeStatus // Map of instance name to node status
+	nodesMu         sync.RWMutex           // Mutex for thread-safe access to nodes map
+	notifiers       []Notifier
+	metricsExporter MetricsExporter
 }
 
 // Notifier is an interface for notification handlers
@@ -42,6 +43,11 @@ type Notifier interface {
 	NotifyNodeRestartAttempt(node *NodeStatus, unhealthyReason string) error
 	NotifyNodeRestartSuccess(node *NodeStatus, unhealthyReason string) error
 	NotifyNodeRestartFailure(node *NodeStatus, unhealthyReason string, err error) error
+}
+
+// MetricsExporter is an interface for metrics exporters
+type MetricsExporter interface {
+	UpdateMetrics()
 }
 
 // NewMonitor creates a new node monitor
@@ -58,6 +64,11 @@ func NewMonitor(cfg *config.Config, discoverer *discovery.Discoverer, apiClient 
 // AddNotifier adds a notifier to the monitor
 func (m *Monitor) AddNotifier(notifier Notifier) {
 	m.notifiers = append(m.notifiers, notifier)
+}
+
+// SetMetricsExporter sets the metrics exporter for the monitor
+func (m *Monitor) SetMetricsExporter(exporter MetricsExporter) {
+	m.metricsExporter = exporter
 }
 
 // Start starts the monitoring process
@@ -148,10 +159,10 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	defer m.nodesMu.Unlock()
 
 	// Create a map to track which nodes we've seen in this discovery
-	seenNodes := make(map[string]bool)
+	discoveredInstances := make(map[string]bool)
 
 	for _, node := range nodes {
-		seenNodes[node.Instance] = true
+		discoveredInstances[node.Instance] = true
 
 		// Get or create node status
 		status, exists := m.nodes[node.Instance]
@@ -198,9 +209,16 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 	// Remove nodes that are no longer present
 	for instance := range m.nodes {
-		if !seenNodes[instance] {
+		if _, exists := discoveredInstances[instance]; !exists {
+			m.nodesMu.Lock()
 			delete(m.nodes, instance)
+			m.nodesMu.Unlock()
 		}
+	}
+
+	// Update metrics if exporter is configured
+	if m.metricsExporter != nil {
+		m.metricsExporter.UpdateMetrics()
 	}
 
 	return nil
