@@ -33,11 +33,11 @@ type Config struct {
 
 // NotificationConfig contains notification-related settings
 type NotificationConfig struct {
-	Enabled         bool           `yaml:"enabled"`
-	WebhookEnabled  bool           `yaml:"webhookEnabled"`
-	WebhookURL      string         `yaml:"webhookUrl"`
-	DiscordEnabled  bool           `yaml:"discordEnabled"`
-	DiscordWebhooks []DiscordHook  `yaml:"discordWebhooks"`
+	Enabled         bool          `yaml:"enabled"`
+	WebhookEnabled  bool          `yaml:"webhookEnabled"`
+	WebhookURL      string        `yaml:"webhookUrl"`
+	DiscordEnabled  bool          `yaml:"discordEnabled"`
+	DiscordWebhooks []DiscordHook `yaml:"discordWebhooks"`
 }
 
 // DiscordHook represents a Discord webhook configuration
@@ -85,7 +85,7 @@ func DefaultConfig() *Config {
 			Path:    "/metrics",
 		},
 		GraphQL: GraphQLConfig{
-			Endpoint: "https://placeholder-graphql-endpoint.com",
+			Endpoint: "https://subsquid.squids.live/subsquid-network-mainnet/graphql",
 		},
 		Commands: CommandsConfig{
 			DiscoverNodes: "bv node ls",

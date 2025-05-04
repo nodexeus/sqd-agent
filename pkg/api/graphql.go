@@ -14,21 +14,21 @@ import (
 
 // NodeNetworkStatus represents the network status of a node from the GraphQL API
 type NodeNetworkStatus struct {
-	PeerID      string  `json:"peerId"`
-	Name        string  `json:"name"`
-	APR         float64 `json:"apr"`
-	Online      bool    `json:"online"`
-	Jailed      bool    `json:"jailed"`
+	PeerID       string  `json:"peerId"`
+	Name         string  `json:"name"`
+	APR          float64 `json:"apr"`
+	Online       bool    `json:"online"`
+	Jailed       bool    `json:"jailed"`
 	JailedReason string  `json:"jailReason"`
 }
 
 // GraphQLClient is a client for the SQD GraphQL API
 type GraphQLClient struct {
-	config     *config.Config
-	httpClient *http.Client
-	lastError  error
+	config        *config.Config
+	httpClient    *http.Client
+	lastError     error
 	lastErrorTime time.Time
-	connected  bool
+	connected     bool
 }
 
 // NewGraphQLClient creates a new GraphQL client
@@ -63,17 +63,17 @@ type GraphQLError struct {
 func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*NodeNetworkStatus, error) {
 	// This is a placeholder query - will be replaced with the actual query later
 	query := `
-	query GetNodeStatus($peerId: String!) {
-		node(peerId: $peerId) {
-			peerId
-			name
-			apr
-			online
-			jailed
-			jailedReason
-		}
-	}
-	`
+	query MyQuery {
+	  workers(where: {peerId_eq: "$peerId"}) {
+        apr
+        name
+        online
+        jailed
+        jailReason
+        peerId
+      }
+    }
+`
 
 	variables := map[string]interface{}{
 		"peerId": peerID,
