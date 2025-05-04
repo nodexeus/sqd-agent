@@ -164,8 +164,8 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				continue
 			}
 
-			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailReason=%s, name=%s, apr=%f, peerID=%s",
-				node.Instance, status.Online, status.Jailed, status.JailReason, status.Name, status.APR, status.PeerID)
+			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailReason=%s, name=%s, apr=%f, peerID=%s, version=%s, claimedReward=%d, claimableReward=%d, servedData24Hours=%d, storedData=%d, totalDelegation=%d, uptime24Hours=%d, queries24Hours=%d",
+				node.Instance, status.Online, status.Jailed, status.JailReason, status.Name, status.APR, status.PeerID, status.Version, status.ClaimedReward, status.ClaimableReward, status.ServedData24Hours, status.StoredData, status.TotalDelegation, status.Uptime24Hours, status.Queries24Hours)
 
 			networkStatuses[node.PeerID] = status
 		}
