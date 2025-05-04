@@ -24,7 +24,6 @@ type PrometheusExporter struct {
 	nodeOnline            *prometheus.GaugeVec
 	nodeQueries24Hours    *prometheus.GaugeVec
 	nodeUptime24Hours     *prometheus.GaugeVec
-	nodeVersion           *prometheus.GaugeVec
 	nodeServedData24Hours *prometheus.GaugeVec
 	nodeStoredData        *prometheus.GaugeVec
 	nodeTotalDelegation   *prometheus.GaugeVec
@@ -50,98 +49,91 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 				Name: "sqd_node_apr",
 				Help: "Annual Percentage Rate (APR) of the SQD node",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeJailed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_jailed",
 				Help: "Whether the SQD node is jailed (1) or not (0)",
 			},
-			[]string{"instance", "peer_id", "name", "reason"},
+			[]string{"instance", "peer_id", "name", "reason", "version"},
 		),
 		nodeOnline: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_online",
 				Help: "Whether the SQD node is online (1) or not (0)",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeQueries24Hours: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_queries_24h",
 				Help: "Number of queries made to the SQD node in the last 24 hours",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeUptime24Hours: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_uptime_24h",
 				Help: "Uptime of the SQD node in the last 24 hours",
 			},
-			[]string{"instance", "peer_id", "name"},
-		),
-		nodeVersion: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "sqd_node_version",
-				Help: "Version of the SQD node",
-			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeServedData24Hours: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_served_data_24h",
 				Help: "Number of bytes served by the SQD node in the last 24 hours",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeStoredData: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_stored_data",
 				Help: "Number of bytes stored by the SQD node",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeTotalDelegation: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_total_delegation",
 				Help: "Total delegation to the SQD node",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeClaimedReward: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_claimed_reward",
 				Help: "Number of rewards claimed by the SQD node",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeClaimableReward: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_claimable_reward",
 				Help: "Number of rewards claimable by the SQD node",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		nodeLocalStatus: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_local_status",
 				Help: "Local status of the SQD node (0=failed, 1=stopped, 2=running)",
 			},
-			[]string{"instance", "peer_id", "name", "status"},
+			[]string{"instance", "peer_id", "name", "status", "version"},
 		),
 		nodeHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_healthy",
 				Help: "Whether the SQD node is healthy (1) or not (0)",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 		lastRestart: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_last_restart_timestamp",
 				Help: "Timestamp of the last restart attempt for the SQD node",
 			},
-			[]string{"instance", "peer_id", "name"},
+			[]string{"instance", "peer_id", "name", "version"},
 		),
 	}
 
@@ -154,7 +146,6 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 	registry.MustRegister(exporter.lastRestart)
 	registry.MustRegister(exporter.nodeQueries24Hours)
 	registry.MustRegister(exporter.nodeUptime24Hours)
-	registry.MustRegister(exporter.nodeVersion)
 	registry.MustRegister(exporter.nodeServedData24Hours)
 	registry.MustRegister(exporter.nodeStoredData)
 	registry.MustRegister(exporter.nodeTotalDelegation)
@@ -243,7 +234,6 @@ func (e *PrometheusExporter) UpdateMetrics() {
 	e.lastRestart.Reset()
 	e.nodeQueries24Hours.Reset()
 	e.nodeUptime24Hours.Reset()
-	e.nodeVersion.Reset()
 	e.nodeServedData24Hours.Reset()
 	e.nodeStoredData.Reset()
 	e.nodeTotalDelegation.Reset()
@@ -261,6 +251,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			"instance": status.Instance,
 			"peer_id":  status.PeerID,
 			"name":     status.Name,
+			"version":  status.Version,
 		}
 
 		// APR
@@ -273,6 +264,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			"peer_id":  status.PeerID,
 			"name":     status.Name,
 			"reason":   status.JailReason,
+			"version":  status.Version,
 		}
 		if status.Jailed {
 			e.nodeJailed.With(jailedLabels).Set(1)
@@ -330,12 +322,6 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			e.nodeUptime24Hours.With(labels).Set(float64(status.Uptime24Hours))
 			log.Debugf("Set uptime24Hours metric for %s: %d", status.Instance, status.Uptime24Hours)
 		}
-
-		// // Version
-		// if status.Version != "" {
-		// 	e.nodeVersion.With(labels).Set(string(status.Version))
-		// 	log.Debugf("Set version metric for %s: %s", status.Instance, status.Version)
-		// }
 
 		// ServedData24Hours
 		if status.ServedData24Hours > 0 {

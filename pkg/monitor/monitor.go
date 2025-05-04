@@ -197,6 +197,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			Instance:    node.Instance,
 			PeerID:      node.PeerID,
 			Name:        node.Name,
+			Version:     node.Version,
 			LastChecked: time.Now(),
 		}
 
