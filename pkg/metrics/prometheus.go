@@ -56,7 +56,7 @@ func NewPrometheusExporter(cfg *config.Config, mon *monitor.Monitor) *Prometheus
 		nodeLocalStatus: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_local_status",
-				Help: "Local status of the SQD node (1=running, 0=not running)",
+				Help: "Local status of the SQD node (0=failed, 1=stopped, 2=running)",
 			},
 			[]string{"instance", "peer_id", "name", "status"},
 		),
@@ -177,6 +177,8 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			"status":   status.LocalStatus,
 		}
 		if status.LocalStatus == "running" {
+			e.nodeLocalStatus.With(localStatusLabels).Set(2)
+		} else if status.LocalStatus == "stopped" {
 			e.nodeLocalStatus.With(localStatusLabels).Set(1)
 		} else {
 			e.nodeLocalStatus.With(localStatusLabels).Set(0)
