@@ -163,13 +163,26 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	}
 
 	worker := workers[0].(map[string]interface{})
-	status := &NodeNetworkStatus{
-		PeerID:     worker["peerId"].(string),
-		Name:       worker["name"].(string),
-		APR:        worker["apr"].(float64),
-		Online:     worker["online"].(bool),
-		Jailed:     worker["jailed"].(bool),
-		JailReason: worker["jailReason"].(string),
+	status := &NodeNetworkStatus{}
+
+	// Safely extract fields with nil checks
+	if peerID, ok := worker["peerId"].(string); ok {
+		status.PeerID = peerID
+	}
+	if name, ok := worker["name"].(string); ok {
+		status.Name = name
+	}
+	if apr, ok := worker["apr"].(float64); ok {
+		status.APR = apr
+	}
+	if online, ok := worker["online"].(bool); ok {
+		status.Online = online
+	}
+	if jailed, ok := worker["jailed"].(bool); ok {
+		status.Jailed = jailed
+	}
+	if jailReason, ok := worker["jailReason"].(string); ok {
+		status.JailReason = jailReason
 	}
 
 	// If we got here, the request was successful
