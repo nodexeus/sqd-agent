@@ -98,6 +98,61 @@ jobs:
            This agent monitors SQD nodes and provides metrics to Prometheus.
           EOF
           
+          # Create postinst script (runs after installation)
+          cat > debian/DEBIAN/postinst << EOF
+          #!/bin/sh
+          set -e
+          
+          # Create data directory for persistent storage
+          mkdir -p /var/lib/sqd-agent
+          chmod 755 /var/lib/sqd-agent
+          
+          # Enable and start the service
+          if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
+            systemctl enable sqd-agent.service >/dev/null 2>&1 || true
+            systemctl start sqd-agent.service >/dev/null 2>&1 || true
+          fi
+          
+          exit 0
+          EOF
+          
+          # Create prerm script (runs before removal)
+          cat > debian/DEBIAN/prerm << EOF
+          #!/bin/sh
+          set -e
+          
+          # Stop the service
+          if [ -d /run/systemd/system ]; then
+            systemctl stop sqd-agent.service >/dev/null 2>&1 || true
+            systemctl disable sqd-agent.service >/dev/null 2>&1 || true
+          fi
+          
+          exit 0
+          EOF
+          
+          # Create postrm script (runs after removal)
+          cat > debian/DEBIAN/postrm << EOF
+          #!/bin/sh
+          set -e
+          
+          # Don't remove data directory by default (preserve user data)
+          # Uncomment if you want to remove data on package removal
+          # rm -rf /var/lib/sqd-agent
+          
+          # Reload systemd
+          if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
+          fi
+          
+          exit 0
+          EOF
+          
+          # Make scripts executable
+          chmod 755 debian/DEBIAN/postinst
+          chmod 755 debian/DEBIAN/prerm
+          chmod 755 debian/DEBIAN/postrm
+          
           # Create systemd service file
           cat > debian/lib/systemd/system/sqd-agent.service << EOF
           [Unit]
