@@ -321,7 +321,7 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 // isNodeHealthy determines if a node is healthy based on its status
 func (m *Monitor) isNodeHealthy(node *NodeStatus) bool {
 	// Check local status
-	if node.LocalStatus != "running" {
+	if node.LocalStatus != "running" && node.LocalStatus != "busy" {
 		return false
 	}
 

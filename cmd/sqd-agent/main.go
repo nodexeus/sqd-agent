@@ -21,7 +21,7 @@ import (
 var (
 	configPath  = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
-	version     = "0.1.3"   // This would be set during build
+	version     = "0.1.4"   // This would be set during build
 	buildTime   = "unknown" // This would be set during build
 )
 
@@ -77,17 +77,17 @@ func main() {
 		statusFn := func() map[string]*monitor.NodeStatus {
 			return mon.GetNodeStatuses()
 		}
-		
+
 		// Create the exporter with the function instead of direct reference
 		prometheusExporter = metrics.NewPrometheusExporter(cfg, statusFn)
-		
+
 		if err := prometheusExporter.Start(); err != nil {
 			log.Fatalf("Failed to start Prometheus exporter: %v", err)
 		}
-		
+
 		// Register the metrics exporter with the monitor
 		mon.SetMetricsExporter(prometheusExporter)
-		
+
 		log.Info("Prometheus metrics exporter configured and started")
 	}
 
