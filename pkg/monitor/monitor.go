@@ -288,6 +288,7 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 		}
 
 		// Attempt to restart the node
+		log.Infof("Attempting to restart node %s", node.Instance)
 		reason := m.getUnhealthyReason(node)
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
@@ -345,7 +346,7 @@ func (m *Monitor) isNodeHealthy(node *NodeStatus) bool {
 
 // getUnhealthyReason returns a human-readable reason why a node is unhealthy
 func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
-	if node.LocalStatus != "running" {
+	if node.LocalStatus != "running" && node.LocalStatus != "busy" {
 		return fmt.Sprintf("Node is not running locally (status: %s)", node.LocalStatus)
 	}
 

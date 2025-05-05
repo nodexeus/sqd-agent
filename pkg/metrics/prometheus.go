@@ -291,7 +291,7 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			"status":   status.LocalStatus,
 			"version":  status.Version,
 		}
-		if status.LocalStatus == "running" {
+		if status.LocalStatus == "running" || status.LocalStatus == "busy" {
 			e.nodeLocalStatus.With(localStatusLabels).Set(2)
 			log.Debugf("Set local status metric for %s: 2 (running)", status.Instance)
 		} else if status.LocalStatus == "stopped" {
