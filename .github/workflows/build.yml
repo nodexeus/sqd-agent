@@ -180,13 +180,15 @@ jobs:
         #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to Cloudsmith
-        uses: cloudsmith-io/action@v0.5.1
+        uses: cloudsmith-io/action@master
+        id: cloudsmith
         with:
           api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
           command: 'push'
           format: 'deb'
-          owner: '${{ github.repository_owner }}'
-          repo: '${{ env.CLOUDSMITH_REPO }}'
+          owner: 'nodexeus'
+          repo: 'sqd-agent'
           distro: 'ubuntu'
           release: 'jammy'
-          file: 'packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb'
+          republish: true
+          file: 'packages/${{ env.APP_NAME }}-${{ env.VERSION }}.amd64.deb'
