@@ -10,10 +10,12 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.22.3'
   APP_NAME: 'sqd-agent'
   CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
   CLOUDSMITH_REPO: 'nodexeus/sqd-agent'
+  # Set environment variables for Go build cache
+  HOME: '/tmp/go-home'
 
 jobs:
   build:
@@ -22,6 +24,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set up Go environment
+        run: |
+          # Create home directory and cache directories for Go
+          mkdir -p $HOME
+          mkdir -p $HOME/.cache/go-build
+          mkdir -p $HOME/go
+          echo "GOPATH=$HOME/go" >> $GITHUB_ENV
+          echo "GOCACHE=$HOME/.cache/go-build" >> $GITHUB_ENV
+          
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
