@@ -176,8 +176,6 @@ jobs:
             
             ### Changes
             Automated build from GitHub Actions
-        # env:
-        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to Cloudsmith
         uses: cloudsmith-io/action@master
@@ -191,4 +189,4 @@ jobs:
           distro: 'ubuntu'
           release: 'jammy'
           republish: true
-          file: 'packages/${{ env.APP_NAME }}-${{ env.VERSION }}.amd64.deb'
+          file: packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb
