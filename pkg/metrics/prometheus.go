@@ -61,7 +61,7 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 		nodeOnline: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_online",
-				Help: "Whether the SQD node is online (1) or not (0)",
+				Help: "Status of the SQD node on the network: 0=offline, 1=online, 2=unregistered (exists but not yet registered on network)",
 			},
 			[]string{"instance", "peer_id", "name", "version"},
 		),
@@ -274,13 +274,22 @@ func (e *PrometheusExporter) UpdateMetrics() {
 			log.Debugf("Set jailed metric for %s: 0", status.Instance)
 		}
 
-		// Online status
-		if status.Online {
+		// Online status - now with 3 states:
+		// 0: Offline (node is registered but offline)
+		// 1: Online (node is registered and online)
+		// 2: Unregistered (node exists but not yet registered on network)
+		if status.NetworkStatus == "unregistered" {
+			// Value 2 represents unregistered state
+			e.nodeOnline.With(labels).Set(2)
+			log.Debugf("Set online metric for %s: 2 (unregistered)", status.Instance)
+		} else if status.Online {
+			// Value 1 represents online state
 			e.nodeOnline.With(labels).Set(1)
-			log.Debugf("Set online metric for %s: 1", status.Instance)
+			log.Debugf("Set online metric for %s: 1 (online)", status.Instance)
 		} else {
+			// Value 0 represents offline state
 			e.nodeOnline.With(labels).Set(0)
-			log.Debugf("Set online metric for %s: 0", status.Instance)
+			log.Debugf("Set online metric for %s: 0 (offline)", status.Instance)
 		}
 
 		// Local status
