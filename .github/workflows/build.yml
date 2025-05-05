@@ -165,8 +165,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb
-            packages/${{ env.APP_NAME }}-${VERSION}.tar.gz
+            packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb
+            packages/${{ env.APP_NAME }}-${{ env.VERSION }}.tar.gz
           generate_release_notes: true
           body: |
             ## New version ${{ env.VERSION }}
