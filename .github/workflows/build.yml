@@ -158,11 +158,21 @@ jobs:
           path: packages/
 
       - name: Publish to GitHub Packages
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          draft: false
+          prerelease: false
           files: |
             packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb
             packages/${{ env.APP_NAME }}-${VERSION}.tar.gz
+          generate_release_notes: true
+          body: |
+            ## New version ${{ env.VERSION }}
+            
+            ### Changes
+            Automated build from GitHub Actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
