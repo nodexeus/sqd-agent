@@ -29,6 +29,8 @@ type NodeNetworkStatus struct {
 	TotalDelegation   int64   `json:"totalDelegation"`
 	ClaimedReward     int64   `json:"claimedReward"`
 	ClaimableReward   int64   `json:"claimableReward"`
+	// Status is used for tracking special states like "pending" for newly created nodes
+	Status            string  `json:"status"`
 }
 
 // GraphQLClient is a client for the SQD GraphQL API
@@ -172,11 +174,22 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 
 	// Extract node status from response
 	workers, ok := graphQLResp.Data["workers"].([]interface{})
-	if !ok || len(workers) == 0 {
-		c.lastError = fmt.Errorf("no worker found with peer ID %s", peerID)
+	if !ok {
+		c.lastError = fmt.Errorf("invalid response format for workers")
 		c.lastErrorTime = time.Now()
 		c.connected = false
-		return nil, fmt.Errorf("no worker found with peer ID %s", peerID)
+		return nil, fmt.Errorf("invalid response format for workers")
+	}
+	
+	// Handle empty workers list as a special case for new nodes
+	if len(workers) == 0 {
+		// This is a valid case for a new node that's not yet registered on the network
+		// Return a status with just the peer ID and mark it as "unregistered"
+		c.connected = true // API connection is fine, just no data for this node yet
+		return &NodeNetworkStatus{
+			PeerID: peerID,
+			Status: "unregistered", // Special status for nodes not yet registered on network
+		}, nil
 	}
 
 	worker := workers[0].(map[string]interface{})

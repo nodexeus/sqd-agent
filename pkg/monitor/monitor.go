@@ -2,7 +2,10 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/api"
@@ -12,11 +15,23 @@ import (
 )
 
 // NodeStatus represents the combined local and network status of a node
+// NodeRestartInfo stores information about node restarts
+type NodeRestartInfo struct {
+	LastRestart  time.Time `json:"last_restart"`
+	RestartCount int       `json:"restart_count"`
+}
+
+// RestartHistory stores restart information for all nodes
+type RestartHistory struct {
+	Nodes map[string]NodeRestartInfo `json:"nodes"`
+}
+
 type NodeStatus struct {
 	Instance          string
 	PeerID            string
 	Name              string
 	LocalStatus       string
+	NetworkStatus     string      // For special statuses like "pending" for newly created nodes
 	APR               float64
 	Online            bool
 	Jailed            bool
@@ -31,6 +46,7 @@ type NodeStatus struct {
 	ClaimableReward   int64
 	LastChecked       time.Time
 	LastRestart       time.Time
+	RestartCount      int         // Count restarts for better tracking
 	Healthy           bool
 }
 
@@ -42,6 +58,71 @@ type Monitor struct {
 	nodes           map[string]*NodeStatus // Map of instance name to node status
 	notifiers       []Notifier
 	metricsExporter MetricsExporter
+	restartHistory  *RestartHistory
+}
+
+// getRestartHistoryPath returns the path to the restart history file
+func getRestartHistoryPath() string {
+	// Use /var/lib/sqd-agent directory for persistence
+	dataDir := "/var/lib/sqd-agent"
+	
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Warnf("Failed to create data directory: %v", err)
+		// Fallback to temp directory
+		return filepath.Join(os.TempDir(), "sqd-agent-restart-history.json")
+	}
+	
+	return filepath.Join(dataDir, "restart-history.json")
+}
+
+// saveRestartHistory persists the restart history to disk
+func saveRestartHistory(history *RestartHistory) error {
+	filePath := getRestartHistoryPath()
+	
+	// Marshal the history to JSON
+	data, err := json.MarshalIndent(history, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal restart history: %w", err)
+	}
+	
+	// Write to file
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write restart history file: %w", err)
+	}
+	
+	log.Debugf("Saved restart history to %s", filePath)
+	return nil
+}
+
+// loadRestartHistory loads the restart history from disk
+func loadRestartHistory() (*RestartHistory, error) {
+	filePath := getRestartHistoryPath()
+	
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		log.Info("No restart history file found, starting with empty history")
+		return &RestartHistory{Nodes: make(map[string]NodeRestartInfo)}, nil
+	}
+	
+	// Read file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read restart history file: %w", err)
+	}
+	
+	// Unmarshal JSON
+	var history RestartHistory
+	if err := json.Unmarshal(data, &history); err != nil {
+		return nil, fmt.Errorf("failed to parse restart history: %w", err)
+	}
+	
+	if history.Nodes == nil {
+		history.Nodes = make(map[string]NodeRestartInfo)
+	}
+	
+	log.Infof("Loaded restart history for %d nodes from %s", len(history.Nodes), filePath)
+	return &history, nil
 }
 
 // Notifier is an interface for notification handlers
@@ -58,13 +139,22 @@ type MetricsExporter interface {
 }
 
 // NewMonitor creates a new node monitor
-func NewMonitor(cfg *config.Config, discoverer *discovery.Discoverer, apiClient *api.GraphQLClient) *Monitor {
+func NewMonitor(config *config.Config, discoverer *discovery.Discoverer, apiClient *api.GraphQLClient) *Monitor {
+	// Load restart history from persistent storage
+	history, err := loadRestartHistory()
+	if err != nil {
+		log.Warnf("Failed to load restart history: %v", err)
+		history = &RestartHistory{Nodes: make(map[string]NodeRestartInfo)}
+	}
+
 	return &Monitor{
-		config:     cfg,
-		discoverer: discoverer,
-		apiClient:  apiClient,
-		nodes:      make(map[string]*NodeStatus),
-		notifiers:  make([]Notifier, 0),
+		config:          config,
+		discoverer:      discoverer,
+		apiClient:       apiClient,
+		nodes:           make(map[string]*NodeStatus),
+		notifiers:       make([]Notifier, 0),
+		metricsExporter: nil,
+		restartHistory:  history,
 	}
 }
 
@@ -208,6 +298,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		// Update network status if we have a peer ID
 		if status.PeerID != "" {
 			if networkStatus, ok := networkStatuses[status.PeerID]; ok {
+				// Copy all network status fields
 				status.APR = networkStatus.APR
 				status.Online = networkStatus.Online
 				status.Jailed = networkStatus.Jailed
@@ -221,6 +312,18 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				status.TotalDelegation = networkStatus.TotalDelegation
 				status.ClaimedReward = networkStatus.ClaimedReward
 				status.ClaimableReward = networkStatus.ClaimableReward
+				
+				// Set the network status
+				if networkStatus.Status != "" {
+					status.NetworkStatus = networkStatus.Status
+					log.Debugf("Node %s has network status: %s", status.Instance, status.NetworkStatus)
+				} else {
+					status.NetworkStatus = "active" // Normal registered node
+				}
+			} else {
+				// We have a peer ID but no network status - this is a newly created node
+				status.NetworkStatus = "unregistered"
+				log.Debugf("Node %s has peer ID %s but no network status, marking as unregistered", status.Instance, status.PeerID)
 			}
 		}
 
@@ -240,6 +343,17 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		if existing, ok := m.nodes[instance]; ok {
 			wasHealthy = existing.Healthy
 			status.LastRestart = existing.LastRestart
+			status.RestartCount = existing.RestartCount
+		}
+
+		// Load restart info from persistent history if we don't have it in memory
+		if status.LastRestart.IsZero() {
+			if restartInfo, ok := m.restartHistory.Nodes[instance]; ok {
+				status.LastRestart = restartInfo.LastRestart
+				status.RestartCount = restartInfo.RestartCount
+				log.Debugf("Loaded persistent restart info for %s: last restart %s, count %d", 
+					instance, status.LastRestart.Format(time.RFC3339), status.RestartCount)
+			}
 		}
 
 		m.nodes[instance] = status
@@ -284,11 +398,15 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 
 		// Skip nodes that were restarted recently
 		if !node.LastRestart.IsZero() && now.Sub(node.LastRestart) < m.config.ActionPeriod {
+			log.Debugf("Skipping restart for %s: last restart was %s ago, need to wait %s", 
+				node.Instance, 
+				now.Sub(node.LastRestart).Round(time.Second), 
+				m.config.ActionPeriod)
 			continue
 		}
 
 		// Attempt to restart the node
-		log.Infof("Attempting to restart node %s", node.Instance)
+		log.Infof("Attempting to restart node %s (restart count: %d)", node.Instance, node.RestartCount)
 		reason := m.getUnhealthyReason(node)
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
@@ -297,7 +415,21 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 		}
 
 		err := m.discoverer.RestartNode(node.Instance)
+		
+		// Update restart information both in memory and persistent storage
 		node.LastRestart = now
+		node.RestartCount++
+		
+		// Update restart history
+		m.restartHistory.Nodes[node.Instance] = NodeRestartInfo{
+			LastRestart: node.LastRestart,
+			RestartCount: node.RestartCount,
+		}
+		
+		// Save to persistent storage
+		if err := saveRestartHistory(m.restartHistory); err != nil {
+			log.Warnf("Failed to save restart history: %v", err)
+		}
 
 		if err != nil {
 			for _, notifier := range m.notifiers {
@@ -314,6 +446,8 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 				log.Errorf("Error sending restart success notification: %v", err)
 			}
 		}
+		
+		log.Infof("Successfully restarted node %s (restart count: %d)", node.Instance, node.RestartCount)
 	}
 
 	return nil
@@ -324,6 +458,14 @@ func (m *Monitor) isNodeHealthy(node *NodeStatus) bool {
 	// Check local status
 	if node.LocalStatus != "running" && node.LocalStatus != "busy" {
 		return false
+	}
+
+	// Special handling for nodes with unregistered network status (newly created nodes)
+	if node.NetworkStatus == "unregistered" {
+		// For unregistered nodes, only check that they're running locally
+		// This gives newly created nodes time to register on the network
+		log.Debugf("Node %s has unregistered network status, considering healthy if running locally", node.Instance)
+		return true
 	}
 
 	// Check network status
@@ -350,6 +492,10 @@ func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
 		return fmt.Sprintf("Node is not running locally (status: %s)", node.LocalStatus)
 	}
 
+	if node.NetworkStatus == "unregistered" {
+		return "Node is not yet registered on the network"
+	}
+	
 	if !node.Online {
 		return "Node is offline on the network"
 	}
