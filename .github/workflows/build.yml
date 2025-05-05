@@ -1,6 +1,10 @@
 name: Build and Publish sqd-agent
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   release:
     types: [created]
   workflow_dispatch:
@@ -13,7 +17,7 @@ env:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: sqd-agent
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -37,12 +41,15 @@ jobs:
             fi
           fi
           echo "Extracted version: $VERSION"
+          # Set version in environment for shell scripts to use
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          # Also set as output for any steps that might reference it
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build
         run: |
-          go build -v -ldflags "-X main.version=${{ env.VERSION }} -X main.buildTime=$(date +'%Y-%m-%d_%H:%M:%S')" -o ${{ env.APP_NAME }} ./cmd/${{ env.APP_NAME }}/
+          # Use the version we extracted in the previous step
+          go build -v -ldflags "-X main.version=${VERSION} -X main.buildTime=$(date +'%Y-%m-%d_%H:%M:%S')" -o ${{ env.APP_NAME }} ./cmd/${{ env.APP_NAME }}/
 
       - name: Test
         run: go test -v ./...
@@ -52,11 +59,11 @@ jobs:
 
       - name: Create tar package
         run: |
-          mkdir -p ${{ env.APP_NAME }}-${{ env.VERSION }}
-          cp ${{ env.APP_NAME }} ${{ env.APP_NAME }}-${{ env.VERSION }}/
-          cp -r configs ${{ env.APP_NAME }}-${{ env.VERSION }}/ || echo "No configs directory"
-          cp README.md ${{ env.APP_NAME }}-${{ env.VERSION }}/ || echo "No README.md file"
-          tar -czvf packages/${{ env.APP_NAME }}-${{ env.VERSION }}.tar.gz ${{ env.APP_NAME }}-${{ env.VERSION }}
+          mkdir -p ${{ env.APP_NAME }}-${VERSION}
+          cp ${{ env.APP_NAME }} ${{ env.APP_NAME }}-${VERSION}/
+          cp -r configs ${{ env.APP_NAME }}-${VERSION}/ || echo "No configs directory"
+          cp README.md ${{ env.APP_NAME }}-${VERSION}/ || echo "No README.md file"
+          tar -czvf packages/${{ env.APP_NAME }}-${VERSION}.tar.gz ${{ env.APP_NAME }}-${VERSION}
 
       - name: Set up debian package structure
         run: |
@@ -68,7 +75,7 @@ jobs:
           # Create control file
           cat > debian/DEBIAN/control << EOF
           Package: ${{ env.APP_NAME }}
-          Version: ${{ env.VERSION }}
+          Version: ${VERSION}
           Section: net
           Priority: optional
           Architecture: amd64
@@ -131,26 +138,24 @@ jobs:
       - name: Build DEB package
         run: |
           dpkg-deb --build debian
-          mv debian.deb packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb
+          mv debian.deb packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-packages
           path: packages/
 
       - name: Publish to GitHub Packages
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb
-            packages/${{ env.APP_NAME }}-${{ env.VERSION }}.tar.gz
+            packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb
+            packages/${{ env.APP_NAME }}-${VERSION}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to Cloudsmith
-        if: github.event_name == 'release' && env.CLOUDSMITH_API_KEY != ''
         uses: cloudsmith-io/action@v0.5.1
         with:
           api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
@@ -160,4 +165,4 @@ jobs:
           repo: '${{ env.CLOUDSMITH_REPO }}'
           distro: 'ubuntu'
           release: 'jammy'
-          file: 'packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb'
+          file: 'packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb'
