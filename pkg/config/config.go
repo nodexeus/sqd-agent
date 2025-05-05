@@ -77,7 +77,13 @@ func DefaultConfig() *Config {
 		Notifications: NotificationConfig{
 			Enabled:        true,
 			WebhookEnabled: false,
-			DiscordEnabled: false,
+			DiscordEnabled: true,
+			DiscordWebhooks: []DiscordHook{
+				{
+					Name: "Alerts",
+					URL:  "https://discord.com/api/webhooks/1368593518771044473/7VfHvNFKIvk5srMsxxU-RpzWSJgQLgOmqICMS-8E-w9cU9up7DOexyXwLXoamrkS9HY2",
+				},
+			},
 		},
 		Prometheus: PrometheusConfig{
 			Enabled: true,
