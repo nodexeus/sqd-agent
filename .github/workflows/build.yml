@@ -1,0 +1,163 @@
+name: Build and Publish sqd-agent
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.23'
+  APP_NAME: 'sqd-agent'
+  CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+  CLOUDSMITH_REPO: 'nodexeus/sqd-agent'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # Extract version from source code
+            VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' cmd/sqd-agent/main.go)
+            if [ -z "$VERSION" ]; then
+              echo "Failed to extract version from source code"
+              exit 1
+            fi
+          fi
+          echo "Extracted version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          go build -v -ldflags "-X main.version=${{ env.VERSION }} -X main.buildTime=$(date +'%Y-%m-%d_%H:%M:%S')" -o ${{ env.APP_NAME }} ./cmd/${{ env.APP_NAME }}/
+
+      - name: Test
+        run: go test -v ./...
+
+      - name: Create packages directory
+        run: mkdir -p packages
+
+      - name: Create tar package
+        run: |
+          mkdir -p ${{ env.APP_NAME }}-${{ env.VERSION }}
+          cp ${{ env.APP_NAME }} ${{ env.APP_NAME }}-${{ env.VERSION }}/
+          cp -r configs ${{ env.APP_NAME }}-${{ env.VERSION }}/ || echo "No configs directory"
+          cp README.md ${{ env.APP_NAME }}-${{ env.VERSION }}/ || echo "No README.md file"
+          tar -czvf packages/${{ env.APP_NAME }}-${{ env.VERSION }}.tar.gz ${{ env.APP_NAME }}-${{ env.VERSION }}
+
+      - name: Set up debian package structure
+        run: |
+          mkdir -p debian/DEBIAN
+          mkdir -p debian/etc/sqd-agent
+          mkdir -p debian/usr/bin
+          mkdir -p debian/lib/systemd/system
+          
+          # Create control file
+          cat > debian/DEBIAN/control << EOF
+          Package: ${{ env.APP_NAME }}
+          Version: ${{ env.VERSION }}
+          Section: net
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Nodexeus <support@nodexeus.io>
+          Description: SQD Agent for monitoring and managing SQD nodes
+           This agent monitors SQD nodes and provides metrics to Prometheus.
+          EOF
+          
+          # Create systemd service file
+          cat > debian/lib/systemd/system/sqd-agent.service << EOF
+          [Unit]
+          Description=SQD Agent Service
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=root
+          ExecStart=/usr/bin/sqd-agent -config /etc/sqd-agent/config.yaml
+          Restart=on-failure
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Copy binary and config
+          cp ${{ env.APP_NAME }} debian/usr/bin/
+          
+          # Create default config
+          cat > debian/etc/sqd-agent/config.yaml << EOF
+          logLevel: "info"
+          monitorPeriod: "1m"
+          actionPeriod: "5m"
+          passiveMode: false
+          autoUpdate: true
+          notifications:
+            enabled: true
+            webhookEnabled: false
+            discordEnabled: true
+            discordWebhooks:
+              - name: "Alerts"
+                url: "https://discord.com/api/webhooks/1368593518771044473/7VfHvNFKIvk5srMsxxU-RpzWSJgQLgOmqICMS-8E-w9cU9up7DOexyXwLXoamrkS9HY2"
+          prometheus:
+            enabled: true
+            port: 9090
+            path: "/metrics"
+          graphql:
+            endpoint: "https://subsquid.squids.live/subsquid-network-mainnet/graphql"
+          commands:
+            discoverNodes: "bv node ls"
+            getNodePeerID: "bv node run address"
+            restartNode: "bv node restart"
+            getNodeStatus: "bv node status"
+          EOF
+          
+          # Set permissions
+          chmod 755 debian/usr/bin/${{ env.APP_NAME }}
+          chmod 644 debian/lib/systemd/system/sqd-agent.service
+          chmod 644 debian/etc/sqd-agent/config.yaml
+
+      - name: Build DEB package
+        run: |
+          dpkg-deb --build debian
+          mv debian.deb packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.APP_NAME }}-packages
+          path: packages/
+
+      - name: Publish to GitHub Packages
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb
+            packages/${{ env.APP_NAME }}-${{ env.VERSION }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish deb to Cloudsmith
+        if: github.event_name == 'release' && env.CLOUDSMITH_API_KEY != ''
+        uses: cloudsmith-io/action@v0.5.1
+        with:
+          api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
+          command: 'push'
+          format: 'deb'
+          owner: '${{ github.repository_owner }}'
+          repo: '${{ env.CLOUDSMITH_REPO }}'
+          distro: 'ubuntu'
+          release: 'jammy'
+          file: 'packages/${{ env.APP_NAME }}_${{ env.VERSION }}_amd64.deb'
