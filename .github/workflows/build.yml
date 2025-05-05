@@ -9,6 +9,9 @@ on:
     types: [created]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   GO_VERSION: '1.23'
   APP_NAME: 'sqd-agent'
@@ -173,8 +176,8 @@ jobs:
             
             ### Changes
             Automated build from GitHub Actions
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # env:
+        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to Cloudsmith
         uses: cloudsmith-io/action@v0.5.1
