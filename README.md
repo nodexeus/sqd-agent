@@ -1,3 +1,5 @@
+[![Build](https://github.com/nodexeus/sqd-agent/actions/workflows/build.yml/badge.svg)](https://github.com/nodexeus/sqd-agent/actions/workflows/build.yml)[![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=flat-square)](https://cloudsmith.com)
+
 # SQD Agent
 
 A monitoring and management agent for SQD nodes running on Linux servers.
