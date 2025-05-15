@@ -77,11 +77,11 @@ func DefaultConfig() *Config {
 		Notifications: NotificationConfig{
 			Enabled:        true,
 			WebhookEnabled: false,
-			DiscordEnabled: true,
+			DiscordEnabled: false,
 			DiscordWebhooks: []DiscordHook{
 				{
 					Name: "Alerts",
-					URL:  "https://discord.com/api/webhooks/1368593518771044473/7VfHvNFKIvk5srMsxxU-RpzWSJgQLgOmqICMS-8E-w9cU9up7DOexyXwLXoamrkS9HY2",
+					URL:  "",
 				},
 			},
 		},
@@ -94,10 +94,10 @@ func DefaultConfig() *Config {
 			Endpoint: "https://subsquid.squids.live/subsquid-network-mainnet/graphql",
 		},
 		Commands: CommandsConfig{
-			DiscoverNodes: "bv node ls",
-			GetNodePeerID: "bv node run address",
-			RestartNode:   "bv node restart",
-			GetNodeStatus: "bv node status",
+			DiscoverNodes: "",
+			GetNodePeerID: "",
+			RestartNode:   "",
+			GetNodeStatus: "",
 		},
 	}
 }

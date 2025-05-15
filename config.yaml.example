@@ -1,9 +1,9 @@
 # SQD Agent Configuration
 
 # General settings
-logLevel: "info"
+logLevel: "info" # Log level, can be debug, info, warn, error
 monitorPeriod: "5m"  # How often to check node status
-actionPeriod: "6h"   # How often to take action on unhealthy nodes
+actionPeriod: "6h"   # How often to take action on unhealthy nodes, e.g. restart and then won't restart again for this period
 passiveMode: false   # If true, only monitor and don't take actions
 autoUpdate: true     # Automatically update the agent when new versions are available
 
@@ -29,7 +29,7 @@ graphql:
 
 # Custom commands
 commands:
-  discoverNodes: "apptainer instance list -j | jq -r '.instances[]| .instance'"
-  getNodePeerID: "bv node run address"
-  restartNode: "bv node restart"
-  getNodeStatus: "bv node status"
+  discoverNodes: "" # command to run to discover all running nodes
+  getNodePeerID: "" # command to run to get the peer ID of a node
+  restartNode: "" # command to run to restart a node
+  getNodeStatus: "" # command to run to get the status of a node
