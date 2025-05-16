@@ -182,10 +182,10 @@ jobs:
           notifications:
             enabled: true
             webhookEnabled: false
-            discordEnabled: true
+            discordEnabled: false
             discordWebhooks:
               - name: "Alerts"
-                url: "https://discord.com/api/webhooks/1368593518771044473/7VfHvNFKIvk5srMsxxU-RpzWSJgQLgOmqICMS-8E-w9cU9up7DOexyXwLXoamrkS9HY2"
+                url: ""
           prometheus:
             enabled: true
             port: 9090
@@ -193,10 +193,10 @@ jobs:
           graphql:
             endpoint: "https://subsquid.squids.live/subsquid-network-mainnet/graphql"
           commands:
-            discoverNodes: "bv node ls"
-            getNodePeerID: "bv node run address"
-            restartNode: "bv node restart"
-            getNodeStatus: "bv node status"
+            discoverNodes: ""
+            getNodePeerID: ""
+            restartNode: ""
+            getNodeStatus: ""
           EOF
           
           # Set permissions
