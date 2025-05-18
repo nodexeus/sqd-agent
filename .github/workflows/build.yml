@@ -118,18 +118,27 @@ jobs:
           EOL
           
           # Create prerm script (runs before removal)
-          cat > debian/DEBIAN/prerm << EOF
+          cat > debian/DEBIAN/prerm << 'EOL'
           #!/bin/sh
           set -e
-          
-          # Stop the service
+
           if [ -d /run/systemd/system ]; then
-            systemctl stop sqd-agent.service >/dev/null 2>&1 || true
-            systemctl disable sqd-agent.service >/dev/null 2>&1 || true
+            case "$1" in
+              remove|upgrade|deconfigure)
+                # Stop the service on removal or upgrade
+                systemctl stop sqd-agent.service >/dev/null 2>&1 || true
+                ;;
+            esac
+            case "$1" in
+              remove|purge)
+                # Only disable on actual removal
+                systemctl disable sqd-agent.service >/dev/null 2>&1 || true
+                ;;
+            esac
           fi
-          
+
           exit 0
-          EOF
+          EOL
           
           # Create postrm script (runs after removal)
           cat > debian/DEBIAN/postrm << EOF
@@ -138,7 +147,7 @@ jobs:
           
           # Don't remove data directory by default (preserve user data)
           # Uncomment if you want to remove data on package removal
-          # rm -rf /var/lib/sqd-agent
+          rm -rf /var/lib/sqd-agent
           
           # Reload systemd
           if [ -d /run/systemd/system ]; then
@@ -230,9 +239,21 @@ jobs:
           fi
           
           # Restart service if it's running
-          if systemctl is-active --quiet sqd-agent; then
-              systemctl restart sqd-agent
+          if [ -d /run/systemd/system ]; then
+            # Always reload systemd to pick up any changes
+            systemctl daemon-reload >/dev/null 2>&1 || true
           fi
+
+          case "$1" in
+            configure)
+              # On install or upgrade, enable and start the service
+              systemctl enable sqd-agent.service >/dev/null 2>&1 || true
+              systemctl start sqd-agent.service >/dev/null 2>&1 || true
+              ;;
+          esac
+          fi
+
+          exit 0
           EOL
           
           # Make postinst executable
