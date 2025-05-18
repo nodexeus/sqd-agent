@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/api"
 	"github.com/nodexeus/sqd-agent/pkg/config"
@@ -97,6 +98,53 @@ func main() {
 		upd, err = updater.NewUpdater(version)
 		if err != nil {
 			log.Warnf("Warning: Failed to create updater: %v", err)
+		} else {
+			// Start the update checker in a goroutine
+			log.Info("Auto-update enabled, starting update checker")
+			updCtx, updCancel := context.WithCancel(context.Background())
+			defer updCancel()
+
+			// Start update checker
+			updateTicker := time.NewTicker(10 * time.Minute)
+			initialDelay := time.After(30 * time.Second)
+
+			// Initial check after delay
+			updateCheck := func() {
+				log.Info("Checking for updates...")
+				release, err := upd.CheckForUpdates()
+				if err != nil {
+					log.Errorf("Error checking for updates: %v", err)
+					return
+				}
+				if release != nil {
+					log.Infof("Update available: %s", release.Version)
+					if err := upd.Update(release); err != nil {
+						log.Errorf("Failed to apply update: %v", err)
+					}
+				}
+			}
+
+			go func() {
+				// Initial check after delay
+				select {
+				case <-initialDelay:
+					updateCheck()
+				case <-updCtx.Done():
+					updateTicker.Stop()
+					return
+				}
+
+				// Periodic checks
+				for {
+					select {
+					case <-updateTicker.C:
+						updateCheck()
+					case <-updCtx.Done():
+						updateTicker.Stop()
+						return
+					}
+				}
+			}()
 		}
 	}
 
