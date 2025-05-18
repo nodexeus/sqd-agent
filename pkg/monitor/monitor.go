@@ -193,10 +193,9 @@ func (m *Monitor) Start(ctx context.Context) error {
 					log.Errorf("Error during node discovery and check: %v", err)
 				}
 			case <-actionTicker.C:
-				if !m.config.PassiveMode {
-					if err := m.takeActions(ctx); err != nil {
-						log.Errorf("Error taking actions on nodes: %v", err)
-					}
+				// Always run actions, but pass the passive mode flag
+				if err := m.takeActions(ctx, m.config.PassiveMode); err != nil {
+					log.Errorf("Error taking actions on nodes: %v", err)
 				}
 			}
 		}
@@ -391,7 +390,8 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 }
 
 // takeActions takes actions on unhealthy nodes
-func (m *Monitor) takeActions(ctx context.Context) error {
+// dryRun when true will log actions but not execute them
+func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 	now := time.Now()
 
 	for _, node := range m.nodes {
@@ -409,9 +409,24 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 			continue
 		}
 
-		// Attempt to restart the node
-		log.Infof("Attempting to restart node %s (restart count: %d)", node.Instance, node.RestartCount)
 		reason := m.getUnhealthyReason(node)
+		logMsg := fmt.Sprintf("Would restart node %s (restart count: %d). Reason: %s", node.Instance, node.RestartCount+1, reason)
+
+		if dryRun {
+			log.Info(logMsg)
+			// Still send notifications in dry-run mode if notifications are enabled
+			if m.config.Notifications.Enabled {
+				for _, notifier := range m.notifiers {
+					if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
+						log.Errorf("Error sending dry-run restart attempt notification: %v", err)
+					}
+				}
+			}
+			continue
+		}
+
+		// Actual restart logic for non-dry-run mode
+		log.Info(logMsg)
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
 				log.Errorf("Error sending restart attempt notification: %v", err)
