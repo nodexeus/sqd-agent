@@ -168,6 +168,7 @@ jobs:
           User=root
           ExecStart=/usr/bin/sqd-agent -config /etc/sqd-agent/config.yaml
           Restart=on-failure
+          RestartSec=20
           
           [Install]
           WantedBy=multi-user.target
