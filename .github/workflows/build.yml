@@ -142,7 +142,7 @@ jobs:
           
           # Don't remove data directory by default (preserve user data)
           # Uncomment if you want to remove data on package removal
-          rm -rf /var/lib/sqd-agent
+          # rm -rf /var/lib/sqd-agent
           
           # Reload systemd
           if [ -d /run/systemd/system ]; then
