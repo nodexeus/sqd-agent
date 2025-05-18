@@ -103,16 +103,36 @@ jobs:
           #!/bin/sh
           set -e
           
-          # Create data directory for persistent storage
-          mkdir -p /var/lib/sqd-agent
-          chmod 755 /var/lib/sqd-agent
+          # Create config directory if it doesn't exist
+          mkdir -p /etc/sqd-agent
           
-          # Enable and start the service
-          if [ -d /run/systemd/system ]; then
-            systemctl daemon-reload >/dev/null 2>&1 || true
-            systemctl enable sqd-agent.service >/dev/null 2>&1 || true
-            systemctl start sqd-agent.service >/dev/null 2>&1 || true
+          # If config file doesn't exist, create it from the example
+          if [ ! -f /etc/sqd-agent/config.yaml ]; then
+              cp /etc/sqd-agent/config.yaml.dpkg-new /etc/sqd-agent/config.yaml 2>/dev/null || \
+              cp /usr/share/sqd-agent/config.yaml.example /etc/sqd-agent/config.yaml 2>/dev/null || true
           fi
+          
+          # Set proper permissions
+          chmod 644 /etc/sqd-agent/config.yaml
+          
+          # Mark the config file as conffile if not already
+          if ! grep -q '/etc/sqd-agent/config.yaml' /var/lib/dpkg/info/sqd-agent.conffiles 2>/dev/null; then
+              echo "/etc/sqd-agent/config.yaml" >> /var/lib/dpkg/info/sqd-agent.conffiles
+          fi
+          
+          # Restart service if it's running
+          if [ -d /run/systemd/system ]; then
+            # Always reload systemd to pick up any changes
+            systemctl daemon-reload >/dev/null 2>&1 || true
+          fi
+
+          case "$1" in
+            configure)
+              # On install or upgrade, enable and start the service
+              systemctl enable sqd-agent.service >/dev/null 2>&1 || true
+              systemctl start sqd-agent.service >/dev/null 2>&1 || true
+              ;;
+          esac
           
           exit 0
           EOL
@@ -215,49 +235,6 @@ jobs:
           
           # Create DEBIAN directory and control files
           mkdir -p debian/DEBIAN
-          
-          # Create postinst script to handle config file
-          cat > debian/DEBIAN/postinst << 'EOL'
-          #!/bin/sh
-          set -e
-          
-          # Create config directory if it doesn't exist
-          mkdir -p /etc/sqd-agent
-          
-          # If config file doesn't exist, create it from the example
-          if [ ! -f /etc/sqd-agent/config.yaml ]; then
-              cp /etc/sqd-agent/config.yaml.dpkg-new /etc/sqd-agent/config.yaml 2>/dev/null || \
-              cp /usr/share/sqd-agent/config.yaml.example /etc/sqd-agent/config.yaml 2>/dev/null || true
-          fi
-          
-          # Set proper permissions
-          chmod 644 /etc/sqd-agent/config.yaml
-          
-          # Mark the config file as conffile if not already
-          if ! grep -q '/etc/sqd-agent/config.yaml' /var/lib/dpkg/info/sqd-agent.conffiles 2>/dev/null; then
-              echo "/etc/sqd-agent/config.yaml" >> /var/lib/dpkg/info/sqd-agent.conffiles
-          fi
-          
-          # Restart service if it's running
-          if [ -d /run/systemd/system ]; then
-            # Always reload systemd to pick up any changes
-            systemctl daemon-reload >/dev/null 2>&1 || true
-          fi
-
-          case "$1" in
-            configure)
-              # On install or upgrade, enable and start the service
-              systemctl enable sqd-agent.service >/dev/null 2>&1 || true
-              systemctl start sqd-agent.service >/dev/null 2>&1 || true
-              ;;
-          esac
-          fi
-
-          exit 0
-          EOL
-          
-          # Make postinst executable
-          chmod 755 debian/DEBIAN/postinst
           
           # Create conffiles to mark config files
           echo "/etc/sqd-agent/config.yaml" > debian/DEBIAN/conffiles
