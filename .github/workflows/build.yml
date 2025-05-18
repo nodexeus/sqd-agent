@@ -99,7 +99,7 @@ jobs:
           EOF
           
           # Create postinst script (runs after installation)
-          cat > debian/DEBIAN/postinst << EOF
+          cat > debian/DEBIAN/postinst << 'EOL'
           #!/bin/sh
           set -e
           
@@ -115,7 +115,7 @@ jobs:
           fi
           
           exit 0
-          EOF
+          EOL
           
           # Create prerm script (runs before removal)
           cat > debian/DEBIAN/prerm << EOF
@@ -203,10 +203,50 @@ jobs:
           chmod 755 debian/usr/bin/${{ env.APP_NAME }}
           chmod 644 debian/lib/systemd/system/sqd-agent.service
           chmod 644 debian/etc/sqd-agent/config.yaml
+          
+          # Create DEBIAN directory and control files
+          mkdir -p debian/DEBIAN
+          
+          # Create postinst script to handle config file
+          cat > debian/DEBIAN/postinst << 'EOL'
+          #!/bin/sh
+          set -e
+          
+          # Create config directory if it doesn't exist
+          mkdir -p /etc/sqd-agent
+          
+          # If config file doesn't exist, create it from the example
+          if [ ! -f /etc/sqd-agent/config.yaml ]; then
+              cp /etc/sqd-agent/config.yaml.dpkg-new /etc/sqd-agent/config.yaml 2>/dev/null || \
+              cp /usr/share/sqd-agent/config.yaml.example /etc/sqd-agent/config.yaml 2>/dev/null || true
+          fi
+          
+          # Set proper permissions
+          chmod 644 /etc/sqd-agent/config.yaml
+          
+          # Mark the config file as conffile if not already
+          if ! grep -q '/etc/sqd-agent/config.yaml' /var/lib/dpkg/info/sqd-agent.conffiles 2>/dev/null; then
+              echo "/etc/sqd-agent/config.yaml" >> /var/lib/dpkg/info/sqd-agent.conffiles
+          fi
+          
+          # Restart service if it's running
+          if systemctl is-active --quiet sqd-agent; then
+              systemctl restart sqd-agent
+          fi
+          EOL
+          
+          # Make postinst executable
+          chmod 755 debian/DEBIAN/postinst
+          
+          # Create conffiles to mark config files
+          echo "/etc/sqd-agent/config.yaml" > debian/DEBIAN/conffiles
 
       - name: Build DEB package
         run: |
-          dpkg-deb --build debian
+          # Build the package
+          dpkg-deb --root-owner-group --build debian
+          
+          # Rename the package with version
           mv debian.deb packages/${{ env.APP_NAME }}_${VERSION}_amd64.deb
 
       - name: Upload artifacts
