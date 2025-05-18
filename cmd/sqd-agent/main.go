@@ -22,7 +22,7 @@ import (
 var (
 	configPath  = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
-	version     = "0.1.17"
+	version     = "0.1.18"
 	buildTime   = "unknown"
 )
 
@@ -107,7 +107,7 @@ func main() {
 			defer updCancel()
 
 			// Start update checker
-			updateTicker := time.NewTicker(10 * time.Minute)
+			updateTicker := time.NewTicker(2 * time.Minute)
 			initialDelay := time.After(30 * time.Second)
 
 			// Initial check after delay
