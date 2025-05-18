@@ -219,6 +219,8 @@ func (u *Updater) updateDebian() error {
 		"DEBIAN_FRONTEND=noninteractive",
 		"APT_LISTCHANGES_FRONTEND=none",
 	)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to update package list: %v", err)
 	}
@@ -229,8 +231,8 @@ func (u *Updater) updateDebian() error {
 		"DEBIAN_FRONTEND=noninteractive",
 		"APT_LISTCHANGES_FRONTEND=none",
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 
 	// Run the update and wait for it to complete
 	if err := cmd.Run(); err != nil {
@@ -239,10 +241,14 @@ func (u *Updater) updateDebian() error {
 
 	// Reload the service to pick up the new binary
 	reloadCmd := exec.Command("systemctl", "reload", "sqd-agent.service")
+	reloadCmd.Stdout = nil
+	reloadCmd.Stderr = nil
 	if err := reloadCmd.Run(); err != nil {
 		log.Warnf("Failed to reload service: %v", err)
 		// If reload fails, try restart
 		restartCmd := exec.Command("systemctl", "restart", "sqd-agent.service")
+		restartCmd.Stdout = nil
+		restartCmd.Stderr = nil
 		if err := restartCmd.Run(); err != nil {
 			return fmt.Errorf("failed to restart service: %v", err)
 		}
