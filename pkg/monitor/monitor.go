@@ -410,10 +410,10 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 		}
 
 		reason := m.getUnhealthyReason(node)
-		logMsg := fmt.Sprintf("Would restart node %s (restart count: %d). Reason: %s", node.Instance, node.RestartCount+1, reason)
 
 		if dryRun {
-			log.Info(logMsg)
+			log.Infof("Would attempt to restart node %s (restart count: %d). Reason: %s",
+				node.Instance, node.RestartCount+1, reason)
 			// Still send notifications in dry-run mode if notifications are enabled
 			if m.config.Notifications.Enabled {
 				for _, notifier := range m.notifiers {
@@ -426,7 +426,8 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 		}
 
 		// Actual restart logic for non-dry-run mode
-		log.Info(logMsg)
+		log.Infof("Attempting to restart node %s (restart count: %d). Reason: %s",
+			node.Instance, node.RestartCount+1, reason)
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
 				log.Errorf("Error sending restart attempt notification: %v", err)
