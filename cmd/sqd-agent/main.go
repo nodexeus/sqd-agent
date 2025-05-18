@@ -44,6 +44,7 @@ func main() {
 	// Configure logging
 	configureLogging(cfg.LogLevel)
 	log.Info("Starting SQD Agent v", version)
+	log.Infof("Configuration loaded - AutoUpdate: %v", cfg.AutoUpdate)
 
 	// Get system hostname
 	hostname, err := os.Hostname()
@@ -95,6 +96,7 @@ func main() {
 	// Create updater
 	var upd *updater.Updater
 	if cfg.AutoUpdate {
+		log.Info("Auto-update is enabled in config, initializing updater...")
 		upd, err = updater.NewUpdater(version)
 		if err != nil {
 			log.Warnf("Warning: Failed to create updater: %v", err)

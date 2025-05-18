@@ -231,12 +231,11 @@ func (u *Updater) updateDebian() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start update process: %v", err)
+	// Run the command and wait for it to complete
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to update package: %v", err)
 	}
 
-	// Exit the current process gracefully
-	os.Exit(0)
 	return nil
 }
 
