@@ -31,7 +31,7 @@ type NodeStatus struct {
 	PeerID            string
 	Name              string
 	LocalStatus       string
-	NetworkStatus     string      // For special statuses like "pending" for newly created nodes
+	NetworkStatus     string // For special statuses like "pending" for newly created nodes
 	APR               float64
 	Online            bool
 	Jailed            bool
@@ -46,7 +46,7 @@ type NodeStatus struct {
 	ClaimableReward   int64
 	LastChecked       time.Time
 	LastRestart       time.Time
-	RestartCount      int         // Count restarts for better tracking
+	RestartCount      int // Count restarts for better tracking
 	Healthy           bool
 }
 
@@ -65,32 +65,32 @@ type Monitor struct {
 func getRestartHistoryPath() string {
 	// Use /var/lib/sqd-agent directory for persistence
 	dataDir := "/var/lib/sqd-agent"
-	
+
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Warnf("Failed to create data directory: %v", err)
 		// Fallback to temp directory
 		return filepath.Join(os.TempDir(), "sqd-agent-restart-history.json")
 	}
-	
+
 	return filepath.Join(dataDir, "restart-history.json")
 }
 
 // saveRestartHistory persists the restart history to disk
 func saveRestartHistory(history *RestartHistory) error {
 	filePath := getRestartHistoryPath()
-	
+
 	// Marshal the history to JSON
 	data, err := json.MarshalIndent(history, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal restart history: %w", err)
 	}
-	
+
 	// Write to file
 	if err := os.WriteFile(filePath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write restart history file: %w", err)
 	}
-	
+
 	log.Debugf("Saved restart history to %s", filePath)
 	return nil
 }
@@ -98,29 +98,29 @@ func saveRestartHistory(history *RestartHistory) error {
 // loadRestartHistory loads the restart history from disk
 func loadRestartHistory() (*RestartHistory, error) {
 	filePath := getRestartHistoryPath()
-	
+
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		log.Info("No restart history file found, starting with empty history")
 		return &RestartHistory{Nodes: make(map[string]NodeRestartInfo)}, nil
 	}
-	
+
 	// Read file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read restart history file: %w", err)
 	}
-	
+
 	// Unmarshal JSON
 	var history RestartHistory
 	if err := json.Unmarshal(data, &history); err != nil {
 		return nil, fmt.Errorf("failed to parse restart history: %w", err)
 	}
-	
+
 	if history.Nodes == nil {
 		history.Nodes = make(map[string]NodeRestartInfo)
 	}
-	
+
 	log.Infof("Loaded restart history for %d nodes from %s", len(history.Nodes), filePath)
 	return &history, nil
 }
@@ -244,6 +244,10 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 			log.Debugf("Fetching network status for node %s with peer ID %s", node.Instance, node.PeerID)
 			status, err := m.apiClient.GetNodeStatus(ctx, node.PeerID)
+			if status.Name == "" {
+				log.Debugf("Node %s has no name, likely unregistered", node.Instance)
+				continue
+			}
 			if err != nil {
 				log.Errorf("Failed to get network status for node %s: %v", node.Instance, err)
 				// If we get an error, mark the connection as down and break the loop
@@ -312,7 +316,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				status.TotalDelegation = networkStatus.TotalDelegation
 				status.ClaimedReward = networkStatus.ClaimedReward
 				status.ClaimableReward = networkStatus.ClaimableReward
-				
+
 				// Set the network status
 				if networkStatus.Status != "" {
 					status.NetworkStatus = networkStatus.Status
@@ -351,7 +355,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			if restartInfo, ok := m.restartHistory.Nodes[instance]; ok {
 				status.LastRestart = restartInfo.LastRestart
 				status.RestartCount = restartInfo.RestartCount
-				log.Debugf("Loaded persistent restart info for %s: last restart %s, count %d", 
+				log.Debugf("Loaded persistent restart info for %s: last restart %s, count %d",
 					instance, status.LastRestart.Format(time.RFC3339), status.RestartCount)
 			}
 		}
@@ -398,9 +402,9 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 
 		// Skip nodes that were restarted recently
 		if !node.LastRestart.IsZero() && now.Sub(node.LastRestart) < m.config.ActionPeriod {
-			log.Debugf("Skipping restart for %s: last restart was %s ago, need to wait %s", 
-				node.Instance, 
-				now.Sub(node.LastRestart).Round(time.Second), 
+			log.Debugf("Skipping restart for %s: last restart was %s ago, need to wait %s",
+				node.Instance,
+				now.Sub(node.LastRestart).Round(time.Second),
 				m.config.ActionPeriod)
 			continue
 		}
@@ -415,17 +419,17 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 		}
 
 		err := m.discoverer.RestartNode(node.Instance)
-		
+
 		// Update restart information both in memory and persistent storage
 		node.LastRestart = now
 		node.RestartCount++
-		
+
 		// Update restart history
 		m.restartHistory.Nodes[node.Instance] = NodeRestartInfo{
-			LastRestart: node.LastRestart,
+			LastRestart:  node.LastRestart,
 			RestartCount: node.RestartCount,
 		}
-		
+
 		// Save to persistent storage
 		if err := saveRestartHistory(m.restartHistory); err != nil {
 			log.Warnf("Failed to save restart history: %v", err)
@@ -446,7 +450,7 @@ func (m *Monitor) takeActions(ctx context.Context) error {
 				log.Errorf("Error sending restart success notification: %v", err)
 			}
 		}
-		
+
 		log.Infof("Successfully restarted node %s (restart count: %d)", node.Instance, node.RestartCount)
 	}
 
@@ -495,7 +499,7 @@ func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
 	if node.NetworkStatus == "unregistered" {
 		return "Node is not yet registered on the network"
 	}
-	
+
 	if !node.Online {
 		return "Node is offline on the network"
 	}
