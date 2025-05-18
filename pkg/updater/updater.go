@@ -239,21 +239,17 @@ func (u *Updater) updateDebian() error {
 		return fmt.Errorf("failed to update package: %v", err)
 	}
 
-	// Reload the service to pick up the new binary
-	reloadCmd := exec.Command("systemctl", "reload", "sqd-agent.service")
-	reloadCmd.Stdout = nil
-	reloadCmd.Stderr = nil
-	if err := reloadCmd.Run(); err != nil {
-		log.Warnf("Failed to reload service: %v", err)
-		// If reload fails, try restart
-		restartCmd := exec.Command("systemctl", "restart", "sqd-agent.service")
-		restartCmd.Stdout = nil
-		restartCmd.Stderr = nil
-		if err := restartCmd.Run(); err != nil {
-			return fmt.Errorf("failed to restart service: %v", err)
-		}
+	// Schedule a restart of the service
+	restartCmd := exec.Command("systemctl", "restart", "sqd-agent.service")
+	restartCmd.Stdout = nil
+	restartCmd.Stderr = nil
+	if err := restartCmd.Start(); err != nil {
+		return fmt.Errorf("failed to schedule service restart: %v", err)
 	}
 
+	// Exit gracefully - systemd will restart us with the new version
+	log.Info("Update complete, restarting service...")
+	os.Exit(0)
 	return nil
 }
 
