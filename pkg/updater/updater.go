@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v45/github"
+	log "github.com/sirupsen/logrus"
 )
 
 // ReleaseInfo represents information about a release
@@ -59,6 +60,7 @@ func NewUpdater(currentVersion string) (*Updater, error) {
 func (u *Updater) IsDebianPackage() bool {
 	// Check for the existence of the debian control file
 	if _, err := os.Stat("/var/lib/dpkg/info/sqd-agent.list"); err == nil {
+		log.Infof("Found Debian package for sqd-agent")
 		return true
 	}
 	// Alternative check for dpkg status
@@ -73,8 +75,10 @@ func (u *Updater) IsDebianPackage() bool {
 // CheckForUpdates checks if there's a new version available
 func (u *Updater) CheckForUpdates() (*ReleaseInfo, error) {
 	if u.IsDebianPackage() {
+		log.Infof("Checking for Debian updates")
 		return u.checkDebianUpdate()
 	}
+	log.Infof("Checking for GitHub updates")
 	return u.checkGitHubUpdate()
 }
 
@@ -209,10 +213,31 @@ func (u *Updater) Update(releaseInfo *ReleaseInfo) error {
 
 // updateDebian updates the package using apt
 func (u *Updater) updateDebian() error {
-	cmd := exec.Command("apt-get", "install", "--only-upgrade", "-y", "sqd-agent")
+	// Set environment variables for non-interactive operation
+	cmd := exec.Command("apt-get", "update", "-qq")
+	cmd.Env = append(os.Environ(),
+		"DEBIAN_FRONTEND=noninteractive",
+		"APT_LISTCHANGES_FRONTEND=none",
+	)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to update package list: %v", err)
+	}
+
+	cmd = exec.Command("apt-get", "install", "--only-upgrade", "-y", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "sqd-agent")
+	cmd.Env = append(os.Environ(),
+		"DEBIAN_FRONTEND=noninteractive",
+		"APT_LISTCHANGES_FRONTEND=none",
+	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start update process: %v", err)
+	}
+
+	// Exit the current process gracefully
+	os.Exit(0)
+	return nil
 }
 
 // updateFromGitHub downloads and installs the new version from GitHub
