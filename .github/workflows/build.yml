@@ -120,19 +120,10 @@ jobs:
               echo "/etc/sqd-agent/config.yaml" >> /var/lib/dpkg/info/sqd-agent.conffiles
           fi
           
-          # Restart service if it's running
+          # Reload systemd to pick up any changes
           if [ -d /run/systemd/system ]; then
-            # Always reload systemd to pick up any changes
             systemctl daemon-reload >/dev/null 2>&1 || true
           fi
-
-          case "$1" in
-            configure)
-              # On install or upgrade, enable and start the service
-              systemctl enable sqd-agent.service >/dev/null 2>&1 || true
-              systemctl start sqd-agent.service >/dev/null 2>&1 || true
-              ;;
-          esac
           
           exit 0
           EOL
@@ -141,22 +132,6 @@ jobs:
           cat > debian/DEBIAN/prerm << 'EOL'
           #!/bin/sh
           set -e
-
-          if [ -d /run/systemd/system ]; then
-            case "$1" in
-              remove|upgrade|deconfigure)
-                # Stop the service on removal or upgrade
-                systemctl stop sqd-agent.service >/dev/null 2>&1 || true
-                ;;
-            esac
-            case "$1" in
-              remove|purge)
-                # Only disable on actual removal
-                systemctl disable sqd-agent.service >/dev/null 2>&1 || true
-                ;;
-            esac
-          fi
-
           exit 0
           EOL
           
@@ -205,7 +180,7 @@ jobs:
           cat > debian/etc/sqd-agent/config.yaml << EOF
           logLevel: "info"
           monitorPeriod: "1m"
-          actionPeriod: "5m"
+          actionPeriod: "6h"
           passiveMode: false
           autoUpdate: true
           notifications:

@@ -213,7 +213,7 @@ func (u *Updater) Update(releaseInfo *ReleaseInfo) error {
 
 // updateDebian updates the package using apt
 func (u *Updater) updateDebian() error {
-	// Set environment variables for non-interactive operation
+	// Update package list
 	cmd := exec.Command("apt-get", "update", "-qq")
 	cmd.Env = append(os.Environ(),
 		"DEBIAN_FRONTEND=noninteractive",
@@ -223,6 +223,7 @@ func (u *Updater) updateDebian() error {
 		return fmt.Errorf("failed to update package list: %v", err)
 	}
 
+	// Run the upgrade
 	cmd = exec.Command("apt-get", "install", "--only-upgrade", "-y", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "sqd-agent")
 	cmd.Env = append(os.Environ(),
 		"DEBIAN_FRONTEND=noninteractive",
@@ -231,9 +232,20 @@ func (u *Updater) updateDebian() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Run the command and wait for it to complete
+	// Run the update and wait for it to complete
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to update package: %v", err)
+	}
+
+	// Reload the service to pick up the new binary
+	reloadCmd := exec.Command("systemctl", "reload", "sqd-agent.service")
+	if err := reloadCmd.Run(); err != nil {
+		log.Warnf("Failed to reload service: %v", err)
+		// If reload fails, try restart
+		restartCmd := exec.Command("systemctl", "restart", "sqd-agent.service")
+		if err := restartCmd.Run(); err != nil {
+			return fmt.Errorf("failed to restart service: %v", err)
+		}
 	}
 
 	return nil
