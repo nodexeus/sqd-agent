@@ -44,6 +44,7 @@ type NodeStatus struct {
 	TotalDelegation   int64
 	ClaimedReward     int64
 	ClaimableReward   int64
+	CreatedAt         time.Time
 	LastChecked       time.Time
 	LastRestart       time.Time
 	RestartCount      int // Count restarts for better tracking
@@ -298,15 +299,15 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		status.LocalStatus = node.LocalStatus
 		status.PeerID = node.PeerID
 
-		// Update network status if we have a peer ID
-		if status.PeerID != "" {
-			if networkStatus, ok := networkStatuses[status.PeerID]; ok {
-				// Copy all network status fields
+		// If we have network status for this node, update the status with the network data
+		if node.PeerID != "" {
+			if networkStatus, ok := networkStatuses[node.PeerID]; ok {
+				// Update status with network data
+				status.Name = networkStatus.Name
 				status.APR = networkStatus.APR
 				status.Online = networkStatus.Online
 				status.Jailed = networkStatus.Jailed
 				status.JailReason = networkStatus.JailReason
-				status.Name = networkStatus.Name
 				status.Queries24Hours = networkStatus.Queries24Hours
 				status.Uptime24Hours = networkStatus.Uptime24Hours
 				status.Version = networkStatus.Version
@@ -315,6 +316,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				status.TotalDelegation = networkStatus.TotalDelegation
 				status.ClaimedReward = networkStatus.ClaimedReward
 				status.ClaimableReward = networkStatus.ClaimableReward
+				status.CreatedAt = networkStatus.CreatedAt
 
 				// Set the network status
 				if networkStatus.Status != "" {
@@ -485,6 +487,12 @@ func (m *Monitor) isNodeHealthy(node *NodeStatus) bool {
 		// For unregistered nodes, only check that they're running locally
 		// This gives newly created nodes time to register on the network
 		log.Debugf("Node %s has unregistered network status, considering healthy if running locally", node.Instance)
+		return true
+	}
+
+	// If node was created within the last 12 hours, consider it healthy regardless of other statuses
+	if !node.CreatedAt.IsZero() && time.Since(node.CreatedAt) <= 12*time.Hour {
+		log.Debugf("Node %s was created within the last 12 hours, considering healthy during grace period", node.Instance)
 		return true
 	}
 

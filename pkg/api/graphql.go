@@ -30,7 +30,8 @@ type NodeNetworkStatus struct {
 	ClaimedReward     int64   `json:"claimedReward"`
 	ClaimableReward   int64   `json:"claimableReward"`
 	// Status is used for tracking special states like "pending" for newly created nodes
-	Status            string  `json:"status"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // GraphQLClient is a client for the SQD GraphQL API
@@ -91,6 +92,7 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 			totalDelegation
 			claimedReward
 			claimableReward
+			createdAt
 		}
 	}
 	`
@@ -180,7 +182,7 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 		c.connected = false
 		return nil, fmt.Errorf("invalid response format for workers")
 	}
-	
+
 	// Handle empty workers list as a special case for new nodes
 	if len(workers) == 0 {
 		// This is a valid case for a new node that's not yet registered on the network
@@ -222,7 +224,7 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	} else if val, ok := worker["queries24Hours"].(float64); ok {
 		status.Queries24Hours = int64(val)
 	}
-	
+
 	if uptime24Hours, ok := worker["uptime24Hours"].(float64); ok {
 		status.Uptime24Hours = int64(uptime24Hours)
 	} else if str, ok := worker["uptime24Hours"].(string); ok {
@@ -231,39 +233,39 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 			status.Uptime24Hours = value
 		}
 	}
-	
+
 	if version, ok := worker["version"].(string); ok {
 		status.Version = version
 	}
-	
+
 	if servedData24Hours, ok := worker["servedData24Hours"].(string); ok {
 		value, err := strconv.ParseInt(servedData24Hours, 10, 64)
 		if err == nil {
 			status.ServedData24Hours = value
 		}
 	}
-	
+
 	if storedData, ok := worker["storedData"].(string); ok {
 		value, err := strconv.ParseInt(storedData, 10, 64)
 		if err == nil {
 			status.StoredData = value
 		}
 	}
-	
+
 	if totalDelegation, ok := worker["totalDelegation"].(string); ok {
 		value, err := strconv.ParseInt(totalDelegation, 10, 64)
 		if err == nil {
 			status.TotalDelegation = value
 		}
 	}
-	
+
 	if claimedReward, ok := worker["claimedReward"].(string); ok {
 		value, err := strconv.ParseInt(claimedReward, 10, 64)
 		if err == nil {
 			status.ClaimedReward = value
 		}
 	}
-	
+
 	if claimableReward, ok := worker["claimableReward"].(string); ok {
 		value, err := strconv.ParseInt(claimableReward, 10, 64)
 		if err == nil {
