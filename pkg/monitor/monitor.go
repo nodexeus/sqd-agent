@@ -11,6 +11,7 @@ import (
 	"github.com/nodexeus/sqd-agent/pkg/api"
 	"github.com/nodexeus/sqd-agent/pkg/config"
 	"github.com/nodexeus/sqd-agent/pkg/discovery"
+	"github.com/nodexeus/sqd-agent/pkg/vectorconfig"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -60,6 +61,7 @@ type Monitor struct {
 	notifiers       []Notifier
 	metricsExporter MetricsExporter
 	restartHistory  *RestartHistory
+	vectorConfig    *vectorconfig.VectorConfig
 }
 
 // getRestartHistoryPath returns the path to the restart history file
@@ -202,6 +204,21 @@ func (m *Monitor) Start(ctx context.Context) error {
 		}
 	}()
 
+	return nil
+}
+
+// updateVectorConfig updates the Vector configuration with the current node statuses
+func (m *Monitor) updateVectorConfig() error {
+	nodeInfos := make([]vectorconfig.NodeInfo, 0, len(m.nodes))
+	for _, node := range m.nodes {
+		nodeInfos = append(nodeInfos, vectorconfig.NodeInfo{
+			Name: node.Name,
+		})
+	}
+
+	if err := vectorconfig.GenerateConfig(nodeInfos); err != nil {
+		return fmt.Errorf("failed to update Vector config: %w", err)
+	}
 	return nil
 }
 
@@ -381,13 +398,17 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 		}
 	}
 
-	// Update metrics if exporter is configured
+	// Update metrics if exporter is set
 	if m.metricsExporter != nil {
-		log.Debug("Updating Prometheus metrics after node status changes...")
 		m.metricsExporter.UpdateMetrics()
 	}
 
-	log.Debug("Completed discoverAndCheck")
+	// Update Vector configuration with current node statuses
+	if err := m.updateVectorConfig(); err != nil {
+		log.Errorf("Failed to update Vector config: %v", err)
+		// Don't fail the entire operation for Vector config update failures
+	}
+
 	return nil
 }
 
