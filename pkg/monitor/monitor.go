@@ -31,6 +31,7 @@ type NodeStatus struct {
 	Instance          string
 	PeerID            string
 	Name              string
+	LocalName         string // Local name of the node (from the instance list)
 	LocalStatus       string
 	NetworkStatus     string // For special statuses like "pending" for newly created nodes
 	APR               float64
@@ -211,8 +212,13 @@ func (m *Monitor) Start(ctx context.Context) error {
 func (m *Monitor) updateVectorConfig() error {
 	nodeInfos := make([]vectorconfig.NodeInfo, 0, len(m.nodes))
 	for _, node := range m.nodes {
+		// Use the local name for the node if available, fall back to Name
+		nodeName := node.Name
+		if node.LocalName != "" {
+			nodeName = node.LocalName
+		}
 		nodeInfos = append(nodeInfos, vectorconfig.NodeInfo{
-			Name: node.Name,
+			Name: nodeName,
 		})
 	}
 
@@ -308,6 +314,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			Instance:    node.Instance,
 			PeerID:      node.PeerID,
 			Name:        node.Name,
+			LocalName:   node.LocalName, // Set the local name from the discovered node
 			Version:     node.Version,
 			LastChecked: time.Now(),
 		}

@@ -15,6 +15,7 @@ type NodeInfo struct {
 	Instance    string // Instance name
 	PeerID      string // Peer ID of the node
 	Name        string // Name of the node from GraphQL
+	LocalName   string // Local name of the node (from the instance list)
 	Version     string // Version of the node from GraphQL
 	LocalStatus string // Local status (running, stopped, failed)
 }
@@ -158,6 +159,7 @@ func parseInstanceList(output string) []NodeInfo {
 		node := NodeInfo{
 			Instance:    nodeID,
 			Name:        nodeName,
+			LocalName:   nodeName, // Store the local name
 			LocalStatus: nodeState,
 		}
 
