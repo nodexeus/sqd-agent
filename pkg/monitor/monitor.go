@@ -33,6 +33,7 @@ type NodeStatus struct {
 	Name              string
 	LocalName         string // Local name of the node (from the instance list)
 	LocalIp           string // Local IP of the node (from the instance list)
+	ImageVersion      string // Image version of the node (from the instance list)
 	LocalStatus       string
 	NetworkStatus     string // For special statuses like "pending" for newly created nodes
 	APR               float64
@@ -310,13 +311,14 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	for _, node := range nodes {
 		// Get or create node status
 		status := &NodeStatus{
-			Instance:    node.Instance,
-			PeerID:      node.PeerID,
-			Name:        node.Name,
-			LocalName:   node.LocalName, // Set the local name from the discovered node
-			LocalIp:     node.LocalIp,   // Set the local IP from the discovered node
-			Version:     node.Version,
-			LastChecked: time.Now(),
+			Instance:     node.Instance,
+			PeerID:       node.PeerID,
+			Name:         node.Name,
+			LocalName:    node.LocalName, // Set the local name from the discovered node
+			LocalIp:      node.LocalIp,   // Set the local IP from the discovered node
+			ImageVersion: node.ImageVersion,
+			Version:      node.Version,
+			LastChecked:  time.Now(),
 		}
 
 		// Update local status

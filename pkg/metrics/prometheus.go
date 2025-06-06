@@ -49,91 +49,91 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 				Name: "sqd_node_apr",
 				Help: "Annual Percentage Rate (APR) of the SQD node",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeJailed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_jailed",
 				Help: "Whether the SQD node is jailed (1) or not (0)",
 			},
-			[]string{"instance", "peer_id", "name", "reason", "version"},
+			[]string{"instance", "peer_id", "name", "reason", "version", "image_version"},
 		),
 		nodeOnline: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_online",
 				Help: "Status of the SQD node on the network: 0=offline, 1=online, 2=unregistered (exists but not yet registered on network)",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeQueries24Hours: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_queries_24h",
 				Help: "Number of queries made to the SQD node in the last 24 hours",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeUptime24Hours: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_uptime_24h",
 				Help: "Uptime of the SQD node in the last 24 hours",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeServedData24Hours: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_served_data_24h",
 				Help: "Number of bytes served by the SQD node in the last 24 hours",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeStoredData: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_stored_data",
 				Help: "Number of bytes stored by the SQD node",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeTotalDelegation: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_total_delegation",
 				Help: "Total delegation to the SQD node",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeClaimedReward: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_claimed_reward",
 				Help: "Number of rewards claimed by the SQD node",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeClaimableReward: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_claimable_reward",
 				Help: "Number of rewards claimable by the SQD node",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		nodeLocalStatus: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_local_status",
 				Help: "Local status of the SQD node (0=failed, 1=stopped, 2=running)",
 			},
-			[]string{"instance", "peer_id", "name", "status", "version"},
+			[]string{"instance", "peer_id", "name", "status", "version", "image_version"},
 		),
 		nodeHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_healthy",
 				Help: "Whether the SQD node is healthy (1) or not (0)",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 		lastRestart: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_last_restart_timestamp",
 				Help: "Timestamp of the last restart attempt for the SQD node",
 			},
-			[]string{"instance", "peer_id", "name", "version"},
+			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
 	}
 
@@ -218,8 +218,8 @@ func (e *PrometheusExporter) UpdateMetrics() {
 	// Debug logging to show actual statuses if present
 	if len(statuses) > 0 {
 		for instance, status := range statuses {
-			log.Debugf("Node status for metrics: instance=%s, peerID=%s, name=%s, healthy=%v, local=%s, online=%v, jailed=%v, apr=%f",
-				instance, status.PeerID, status.Name, status.Healthy, status.LocalStatus, status.Online, status.Jailed, status.APR)
+			log.Debugf("Node status for metrics: instance=%s, peerID=%s, name=%s, healthy=%v, local=%s, online=%v, jailed=%v, apr=%f, image_version=%s",
+				instance, status.PeerID, status.Name, status.Healthy, status.LocalStatus, status.Online, status.Jailed, status.APR, status.ImageVersion)
 		}
 	} else {
 		log.Warn("No node statuses available for metrics update - check monitor.GetNodeStatuses()")
@@ -248,10 +248,11 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		}
 
 		labels := prometheus.Labels{
-			"instance": status.Instance,
-			"peer_id":  status.PeerID,
-			"name":     status.Name,
-			"version":  status.Version,
+			"instance":      status.Instance,
+			"peer_id":       status.PeerID,
+			"name":          status.Name,
+			"version":       status.Version,
+			"image_version": status.ImageVersion,
 		}
 
 		// APR
@@ -260,11 +261,12 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 		// Jailed status
 		jailedLabels := prometheus.Labels{
-			"instance": status.Instance,
-			"peer_id":  status.PeerID,
-			"name":     status.Name,
-			"reason":   status.JailReason,
-			"version":  status.Version,
+			"instance":      status.Instance,
+			"peer_id":       status.PeerID,
+			"name":          status.Name,
+			"reason":        status.JailReason,
+			"version":       status.Version,
+			"image_version": status.ImageVersion,
 		}
 		if status.Jailed {
 			e.nodeJailed.With(jailedLabels).Set(1)
@@ -294,11 +296,12 @@ func (e *PrometheusExporter) UpdateMetrics() {
 
 		// Local status
 		localStatusLabels := prometheus.Labels{
-			"instance": status.Instance,
-			"peer_id":  status.PeerID,
-			"name":     status.Name,
-			"status":   status.LocalStatus,
-			"version":  status.Version,
+			"instance":      status.Instance,
+			"peer_id":       status.PeerID,
+			"name":          status.Name,
+			"status":        status.LocalStatus,
+			"version":       status.Version,
+			"image_version": status.ImageVersion,
 		}
 		if status.LocalStatus == "running" || status.LocalStatus == "busy" {
 			e.nodeLocalStatus.With(localStatusLabels).Set(2)

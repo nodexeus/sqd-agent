@@ -12,13 +12,14 @@ import (
 
 // NodeInfo contains information about a discovered SQD node
 type NodeInfo struct {
-	Instance    string // Instance name
-	PeerID      string // Peer ID of the node
-	Name        string // Name of the node from GraphQL
-	LocalName   string // Local name of the node (from the instance list)
-	LocalIp     string // Local IP of the node (from the instance list)
-	Version     string // Version of the node from GraphQL
-	LocalStatus string // Local status (running, stopped, failed)
+	Instance     string // Instance name
+	PeerID       string // Peer ID of the node
+	Name         string // Name of the node from GraphQL
+	LocalName    string // Local name of the node (from the instance list)
+	LocalIp      string // Local IP of the node (from the instance list)
+	ImageVersion string // Version of the node from the image
+	Version      string // Version of the node from GraphQL
+	LocalStatus  string // Local status (running, stopped, failed)
 }
 
 // Discoverer is responsible for discovering SQD nodes on the server
@@ -156,14 +157,16 @@ func parseInstanceList(output string) []NodeInfo {
 		nodeName := fields[1]
 		nodeState := strings.ToLower(fields[3]) // Convert to lowercase for consistency
 		nodeIp := fields[4]
+		imageVersion := strings.Split(fields[2], "/")[2]
 
 		// Create NodeInfo
 		node := NodeInfo{
-			Instance:    nodeID,
-			Name:        nodeName,
-			LocalName:   nodeName, // Store the local name
-			LocalStatus: nodeState,
-			LocalIp:     nodeIp,
+			Instance:     nodeID,
+			Name:         nodeName,
+			LocalName:    nodeName, // Store the local name
+			LocalStatus:  nodeState,
+			LocalIp:      nodeIp,
+			ImageVersion: imageVersion,
 		}
 
 		nodes = append(nodes, node)
