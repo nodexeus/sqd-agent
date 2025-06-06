@@ -21,7 +21,7 @@ type VectorConfig struct {
 
 // NodeInfo represents the minimal node information needed for Vector config
 type NodeInfo struct {
-	Name string
+	Ip string
 }
 
 // GenerateConfig generates the Vector configuration from discovered nodes
@@ -30,13 +30,13 @@ func GenerateConfig(nodes []NodeInfo) error {
 	endpoints := make([]string, 0, len(nodes)*2) // 2 endpoints per node (metrics and caddy)
 
 	for _, node := range nodes {
-		if node.Name == "" {
+		if node.Ip == "" {
 			continue // Skip nodes without names
 		}
 		// Add both metrics and caddy endpoints
 		endpoints = append(endpoints,
-			fmt.Sprintf("http://%s.nodexeus.io/metrics", node.Name),
-			fmt.Sprintf("http://%s.nodexeus.io/caddy", node.Name),
+			fmt.Sprintf("http://%s/metrics", node.Ip),
+			fmt.Sprintf("http://%s/caddy", node.Ip),
 		)
 	}
 
