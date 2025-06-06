@@ -15,8 +15,8 @@ const (
 
 // VectorConfig represents the structure of the Vector configuration
 type VectorConfig struct {
-	Type       string   `yaml:"type"`
-	Endpoints  []string `yaml:"endpoints"`
+	Type      string   `yaml:"type"`
+	Endpoints []string `yaml:"endpoints"`
 }
 
 // NodeInfo represents the minimal node information needed for Vector config
@@ -29,15 +29,14 @@ func GenerateConfig(nodes []NodeInfo) error {
 	// Create endpoints list
 	endpoints := make([]string, 0, len(nodes)*2) // 2 endpoints per node (metrics and caddy)
 
-
 	for _, node := range nodes {
 		if node.Name == "" {
 			continue // Skip nodes without names
 		}
 		// Add both metrics and caddy endpoints
-		endpoints = append(endpoints, 
-			fmt.Sprintf("http://%s/metrics", node.Name),
-			fmt.Sprintf("http://%s/caddy", node.Name),
+		endpoints = append(endpoints,
+			fmt.Sprintf("http://%s.nodexeus.io/metrics", node.Name),
+			fmt.Sprintf("http://%s.nodexeus.io/caddy", node.Name),
 		)
 	}
 
