@@ -314,6 +314,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			PeerID:      node.PeerID,
 			Name:        node.Name,
 			LocalName:   node.LocalName, // Set the local name from the discovered node
+			LocalIp:     node.LocalIp,   // Set the local IP from the discovered node
 			Version:     node.Version,
 			LastChecked: time.Now(),
 		}
