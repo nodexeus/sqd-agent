@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"time"
@@ -41,13 +42,13 @@ type NodeStatus struct {
 	Jailed            bool
 	JailReason        string
 	Queries24Hours    int64
-	Uptime24Hours     int64
+	Uptime24Hours     float64
 	Version           string
 	ServedData24Hours int64
-	StoredData        int64
-	TotalDelegation   int64
-	ClaimedReward     int64
-	ClaimableReward   int64
+	StoredData        *big.Int
+	TotalDelegation   *big.Int
+	ClaimedReward     *big.Int
+	ClaimableReward   *big.Int
 	CreatedAt         time.Time
 	LastChecked       time.Time
 	LastRestart       time.Time
@@ -281,7 +282,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				continue
 			}
 
-			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailReason=%s, name=%s, apr=%f, peerID=%s, version=%s, claimedReward=%d, claimableReward=%d, servedData24Hours=%d, storedData=%d, totalDelegation=%d, uptime24Hours=%d, queries24Hours=%d",
+			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailReason=%s, name=%s, apr=%f, peerID=%s, version=%s, claimedReward=%d, claimableReward=%d, servedData24Hours=%d, storedData=%d, totalDelegation=%d, uptime24Hours=%f, queries24Hours=%d",
 				node.Instance, status.Online, status.Jailed, status.JailReason, status.Name, status.APR, status.PeerID, status.Version, status.ClaimedReward, status.ClaimableReward, status.ServedData24Hours, status.StoredData, status.TotalDelegation, status.Uptime24Hours, status.Queries24Hours)
 
 			networkStatuses[node.PeerID] = status

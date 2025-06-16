@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,20 +16,20 @@ import (
 
 // NodeNetworkStatus represents the network status of a node from the GraphQL API
 type NodeNetworkStatus struct {
-	PeerID            string  `json:"peerId"`
-	Name              string  `json:"name"`
-	APR               float64 `json:"apr"`
-	Online            bool    `json:"online"`
-	Jailed            bool    `json:"jailed"`
-	JailReason        string  `json:"jailReason"`
-	Queries24Hours    int64   `json:"queries24Hours"`
-	Uptime24Hours     int64   `json:"uptime24Hours"`
-	Version           string  `json:"version"`
-	ServedData24Hours int64   `json:"servedData24Hours"`
-	StoredData        int64   `json:"storedData"`
-	TotalDelegation   int64   `json:"totalDelegation"`
-	ClaimedReward     int64   `json:"claimedReward"`
-	ClaimableReward   int64   `json:"claimableReward"`
+	PeerID            string   `json:"peerId"`
+	Name              string   `json:"name"`
+	APR               float64  `json:"apr"`
+	Online            bool     `json:"online"`
+	Jailed            bool     `json:"jailed"`
+	JailReason        string   `json:"jailReason"`
+	Queries24Hours    int64    `json:"queries24Hours"`
+	Uptime24Hours     float64  `json:"uptime24Hours"`
+	Version           string   `json:"version"`
+	ServedData24Hours int64    `json:"servedData24Hours"`
+	StoredData        *big.Int `json:"storedData"`
+	TotalDelegation   *big.Int `json:"totalDelegation"`
+	ClaimedReward     *big.Int `json:"claimedReward"`
+	ClaimableReward   *big.Int `json:"claimableReward"`
 	// Status is used for tracking special states like "pending" for newly created nodes
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -226,9 +227,9 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	}
 
 	if uptime24Hours, ok := worker["uptime24Hours"].(float64); ok {
-		status.Uptime24Hours = int64(uptime24Hours)
+		status.Uptime24Hours = uptime24Hours
 	} else if str, ok := worker["uptime24Hours"].(string); ok {
-		value, err := strconv.ParseInt(str, 10, 64)
+		value, err := strconv.ParseFloat(str, 64)
 		if err == nil {
 			status.Uptime24Hours = value
 		}
@@ -248,28 +249,28 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	if storedData, ok := worker["storedData"].(string); ok {
 		value, err := strconv.ParseInt(storedData, 10, 64)
 		if err == nil {
-			status.StoredData = value
+			status.StoredData = big.NewInt(value)
 		}
 	}
 
 	if totalDelegation, ok := worker["totalDelegation"].(string); ok {
 		value, err := strconv.ParseInt(totalDelegation, 10, 64)
 		if err == nil {
-			status.TotalDelegation = value
+			status.TotalDelegation = big.NewInt(value)
 		}
 	}
 
 	if claimedReward, ok := worker["claimedReward"].(string); ok {
 		value, err := strconv.ParseInt(claimedReward, 10, 64)
 		if err == nil {
-			status.ClaimedReward = value
+			status.ClaimedReward = big.NewInt(value)
 		}
 	}
 
 	if claimableReward, ok := worker["claimableReward"].(string); ok {
 		value, err := strconv.ParseInt(claimableReward, 10, 64)
 		if err == nil {
-			status.ClaimableReward = value
+			status.ClaimableReward = big.NewInt(value)
 		}
 	}
 
