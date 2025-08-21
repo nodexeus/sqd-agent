@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
+	"github.com/nodexeus/sqd-agent/pkg/httpclient"
 )
 
 // NodeNetworkStatus represents the network status of a node from the GraphQL API
@@ -25,11 +25,11 @@ type NodeNetworkStatus struct {
 	Queries24Hours    int64    `json:"queries24Hours"`
 	Uptime24Hours     float64  `json:"uptime24Hours"`
 	Version           string   `json:"version"`
-	ServedData24Hours int64    `json:"servedData24Hours"`
-	StoredData        *big.Int `json:"storedData"`
-	TotalDelegation   *big.Int `json:"totalDelegation"`
-	ClaimedReward     *big.Int `json:"claimedReward"`
-	ClaimableReward   *big.Int `json:"claimableReward"`
+	ServedData24Hours int64 `json:"servedData24Hours"`
+	StoredData        int64 `json:"storedData"`
+	TotalDelegation   int64 `json:"totalDelegation"`
+	ClaimedReward     int64 `json:"claimedReward"`
+	ClaimableReward   int64 `json:"claimableReward"`
 	// Status is used for tracking special states like "pending" for newly created nodes
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -47,10 +47,8 @@ type GraphQLClient struct {
 // NewGraphQLClient creates a new GraphQL client
 func NewGraphQLClient(cfg *config.Config) *GraphQLClient {
 	return &GraphQLClient{
-		config: cfg,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		config:        cfg,
+		httpClient:    httpclient.DefaultClient,
 		connected:     false,
 		lastErrorTime: time.Now(),
 	}
@@ -249,28 +247,28 @@ func (c *GraphQLClient) GetNodeStatus(ctx context.Context, peerID string) (*Node
 	if storedData, ok := worker["storedData"].(string); ok {
 		value, err := strconv.ParseInt(storedData, 10, 64)
 		if err == nil {
-			status.StoredData = big.NewInt(value)
+			status.StoredData = value
 		}
 	}
 
 	if totalDelegation, ok := worker["totalDelegation"].(string); ok {
 		value, err := strconv.ParseInt(totalDelegation, 10, 64)
 		if err == nil {
-			status.TotalDelegation = big.NewInt(value)
+			status.TotalDelegation = value
 		}
 	}
 
 	if claimedReward, ok := worker["claimedReward"].(string); ok {
 		value, err := strconv.ParseInt(claimedReward, 10, 64)
 		if err == nil {
-			status.ClaimedReward = big.NewInt(value)
+			status.ClaimedReward = value
 		}
 	}
 
 	if claimableReward, ok := worker["claimableReward"].(string); ok {
 		value, err := strconv.ParseInt(claimableReward, 10, 64)
 		if err == nil {
-			status.ClaimableReward = big.NewInt(value)
+			status.ClaimableReward = value
 		}
 	}
 

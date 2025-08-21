@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
+	"github.com/nodexeus/sqd-agent/pkg/httpclient"
 	"github.com/nodexeus/sqd-agent/pkg/monitor"
 )
 
@@ -21,11 +22,9 @@ type WebhookNotifier struct {
 // NewWebhookNotifier creates a new webhook notifier
 func NewWebhookNotifier(cfg *config.Config, hostname string) *WebhookNotifier {
 	return &WebhookNotifier{
-		config: cfg,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-		hostname: hostname,
+		config:     cfg,
+		httpClient: httpclient.DefaultClient,
+		hostname:   hostname,
 	}
 }
 
@@ -147,11 +146,9 @@ type DiscordNotifier struct {
 // NewDiscordNotifier creates a new Discord notifier
 func NewDiscordNotifier(cfg *config.Config, hostname string) *DiscordNotifier {
 	return &DiscordNotifier{
-		config: cfg,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-		hostname: hostname,
+		config:     cfg,
+		httpClient: httpclient.DefaultClient,
+		hostname:   hostname,
 	}
 }
 

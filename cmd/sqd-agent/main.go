@@ -127,6 +127,11 @@ func main() {
 			}
 
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Errorf("Update checker goroutine panic recovered: %v", r)
+					}
+				}()
 				// Initial check after delay
 				select {
 				case <-initialDelay:

@@ -1,10 +1,10 @@
 package discovery
 
 import (
-	"bytes"
+	"context"
 	"fmt"
-	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
 	log "github.com/sirupsen/logrus"
@@ -36,19 +36,16 @@ func NewDiscoverer(cfg *config.Config) *Discoverer {
 
 // DiscoverNodes discovers all SQD nodes running on the server
 func (d *Discoverer) DiscoverNodes() ([]NodeInfo, error) {
-	// Execute the discover nodes command
-	cmd := exec.Command("bash", "-c", d.config.Commands.DiscoverNodes)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Errorf("Failed to discover nodes: %v, stderr: %s", err, stderr.String())
-		return nil, fmt.Errorf("failed to discover nodes: %w, stderr: %s", err, stderr.String())
+	// Execute the discover nodes command with 30 second timeout
+	ctx := context.Background()
+	stdout, stderr, err := execCommand(ctx, d.config.Commands.DiscoverNodes, 30*time.Second)
+	if err != nil {
+		log.Errorf("Failed to discover nodes: %v, stderr: %s", err, stderr)
+		return nil, fmt.Errorf("failed to discover nodes: %w, stderr: %s", err, stderr)
 	}
 
 	// Parse the output to get instance names
-	nodes := parseInstanceList(stdout.String())
+	nodes := parseInstanceList(stdout)
 
 	log.Debugf("Discovered %d nodes: %v", len(nodes), nodeNames(nodes))
 
@@ -79,32 +76,28 @@ func nodeNames(nodes []NodeInfo) []string {
 
 // getNodePeerID gets the peer ID for a specific node instance
 func (d *Discoverer) getNodePeerID(instance string) (string, error) {
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("%s %s", d.config.Commands.GetNodePeerID, instance))
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Debugf("Get peer ID command failed for %s: %v, stderr: %s", instance, err, stderr.String())
-		return "", fmt.Errorf("failed to get peer ID: %w, stderr: %s", err, stderr.String())
+	ctx := context.Background()
+	command := fmt.Sprintf("%s %s", d.config.Commands.GetNodePeerID, instance)
+	stdout, stderr, err := execCommand(ctx, command, 10*time.Second)
+	if err != nil {
+		log.Debugf("Get peer ID command failed for %s: %v, stderr: %s", instance, err, stderr)
+		return "", fmt.Errorf("failed to get peer ID: %w, stderr: %s", err, stderr)
 	}
 
-	return strings.TrimSpace(stdout.String()), nil
+	return strings.TrimSpace(stdout), nil
 }
 
 // getNodeStatus gets the local status for a specific node instance
 func (d *Discoverer) getNodeStatus(instance string) (string, error) {
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("%s %s", d.config.Commands.GetNodeStatus, instance))
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Debugf("Node status command failed for %s: %v, stderr: %s", instance, err, stderr.String())
+	ctx := context.Background()
+	command := fmt.Sprintf("%s %s", d.config.Commands.GetNodeStatus, instance)
+	stdout, stderr, err := execCommand(ctx, command, 10*time.Second)
+	if err != nil {
+		log.Debugf("Node status command failed for %s: %v, stderr: %s", instance, err, stderr)
 		return "failed", nil
 	}
 
-	status := strings.TrimSpace(stdout.String())
+	status := strings.TrimSpace(stdout)
 	log.Debugf("Node %s status: %s", instance, status)
 	return status, nil
 }
@@ -113,14 +106,12 @@ func (d *Discoverer) getNodeStatus(instance string) (string, error) {
 func (d *Discoverer) RestartNode(instance string) error {
 	log.Infof("Attempting to restart node %s", instance)
 
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("%s %s", d.config.Commands.RestartNode, instance))
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		log.Errorf("Failed to restart node %s: %v, stderr: %s", instance, err, stderr.String())
-		return fmt.Errorf("failed to restart node: %w, stderr: %s", err, stderr.String())
+	ctx := context.Background()
+	command := fmt.Sprintf("%s %s", d.config.Commands.RestartNode, instance)
+	_, stderr, err := execCommand(ctx, command, 60*time.Second) // Longer timeout for restart operations
+	if err != nil {
+		log.Errorf("Failed to restart node %s: %v, stderr: %s", instance, err, stderr)
+		return fmt.Errorf("failed to restart node: %w, stderr: %s", err, stderr)
 	}
 
 	log.Infof("Successfully restarted node %s", instance)

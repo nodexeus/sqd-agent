@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"time"
@@ -45,10 +44,10 @@ type NodeStatus struct {
 	Uptime24Hours     float64
 	Version           string
 	ServedData24Hours int64
-	StoredData        *big.Int
-	TotalDelegation   *big.Int
-	ClaimedReward     *big.Int
-	ClaimableReward   *big.Int
+	StoredData        int64
+	TotalDelegation   int64
+	ClaimedReward     int64
+	ClaimableReward   int64
 	CreatedAt         time.Time
 	LastChecked       time.Time
 	LastRestart       time.Time
@@ -58,14 +57,16 @@ type NodeStatus struct {
 
 // Monitor is responsible for monitoring SQD nodes
 type Monitor struct {
-	config          *config.Config
-	discoverer      *discovery.Discoverer
-	apiClient       *api.GraphQLClient
-	nodes           map[string]*NodeStatus // Map of instance name to node status
-	notifiers       []Notifier
-	metricsExporter MetricsExporter
-	restartHistory  *RestartHistory
-	vectorConfig    *vectorconfig.VectorConfig
+	config                *config.Config
+	discoverer            *discovery.Discoverer
+	apiClient             *api.GraphQLClient
+	nodes                 map[string]*NodeStatus // Map of instance name to node status
+	notifiers             []Notifier
+	metricsExporter       MetricsExporter
+	restartHistory        *RestartHistory
+	vectorConfig          *vectorconfig.VectorConfig
+	restartHistoryDirty   bool
+	lastRestartHistorySave time.Time
 }
 
 // getRestartHistoryPath returns the path to the restart history file
@@ -83,8 +84,8 @@ func getRestartHistoryPath() string {
 	return filepath.Join(dataDir, "restart-history.json")
 }
 
-// saveRestartHistory persists the restart history to disk
-func saveRestartHistory(history *RestartHistory) error {
+// saveRestartHistoryToDisk persists the restart history to disk immediately
+func saveRestartHistoryToDisk(history *RestartHistory) error {
 	filePath := getRestartHistoryPath()
 
 	// Marshal the history to JSON
@@ -99,6 +100,33 @@ func saveRestartHistory(history *RestartHistory) error {
 	}
 
 	log.Debugf("Saved restart history to %s", filePath)
+	return nil
+}
+
+// saveRestartHistory marks the restart history as dirty and saves it if needed
+func (m *Monitor) saveRestartHistory() error {
+	m.restartHistoryDirty = true
+	
+	// Save immediately if it's been more than 5 minutes since last save
+	if time.Since(m.lastRestartHistorySave) > 5*time.Minute {
+		return m.flushRestartHistory()
+	}
+	
+	return nil
+}
+
+// flushRestartHistory immediately saves the restart history to disk
+func (m *Monitor) flushRestartHistory() error {
+	if !m.restartHistoryDirty {
+		return nil // No changes to save
+	}
+	
+	if err := saveRestartHistoryToDisk(m.restartHistory); err != nil {
+		return err
+	}
+	
+	m.restartHistoryDirty = false
+	m.lastRestartHistorySave = time.Now()
 	return nil
 }
 
@@ -155,13 +183,15 @@ func NewMonitor(config *config.Config, discoverer *discovery.Discoverer, apiClie
 	}
 
 	return &Monitor{
-		config:          config,
-		discoverer:      discoverer,
-		apiClient:       apiClient,
-		nodes:           make(map[string]*NodeStatus),
-		notifiers:       make([]Notifier, 0),
-		metricsExporter: nil,
-		restartHistory:  history,
+		config:                config,
+		discoverer:            discoverer,
+		apiClient:             apiClient,
+		nodes:                 make(map[string]*NodeStatus),
+		notifiers:             make([]Notifier, 0),
+		metricsExporter:       nil,
+		restartHistory:        history,
+		restartHistoryDirty:   false,
+		lastRestartHistorySave: time.Now(),
 	}
 }
 
@@ -186,9 +216,15 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 	// Start periodic monitoring
 	monitorTicker := time.NewTicker(m.config.MonitorPeriod)
-	actionTicker := time.NewTicker(m.config.MonitorPeriod)
+	actionTicker := time.NewTicker(m.config.ActionPeriod)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("Monitor goroutine panic recovered: %v", r)
+				// Optionally restart the goroutine or take other recovery actions
+			}
+		}()
 		for {
 			select {
 			case <-ctx.Done():
@@ -212,7 +248,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 }
 
 // updateVectorConfig updates the Vector configuration with the current node statuses
-func (m *Monitor) updateVectorConfig() error {
+func (m *Monitor) updateVectorConfig(ctx context.Context) error {
 	nodeInfos := make([]vectorconfig.NodeInfo, 0, len(m.nodes))
 	for _, node := range m.nodes {
 		// Use the local name for the node if available, fall back to Name
@@ -223,7 +259,7 @@ func (m *Monitor) updateVectorConfig() error {
 		})
 	}
 
-	if err := vectorconfig.GenerateConfig(nodeInfos); err != nil {
+	if err := vectorconfig.GenerateConfig(ctx, nodeInfos); err != nil {
 		return fmt.Errorf("failed to update Vector config: %w", err)
 	}
 	return nil
@@ -414,9 +450,14 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 	}
 
 	// Update Vector configuration with current node statuses
-	if err := m.updateVectorConfig(); err != nil {
+	if err := m.updateVectorConfig(ctx); err != nil {
 		log.Errorf("Failed to update Vector config: %v", err)
 		// Don't fail the entire operation for Vector config update failures
+	}
+
+	// Periodically flush restart history to disk
+	if err := m.flushRestartHistory(); err != nil {
+		log.Warnf("Failed to flush restart history: %v", err)
 	}
 
 	return nil
@@ -479,8 +520,8 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 			RestartCount: node.RestartCount,
 		}
 
-		// Save to persistent storage
-		if err := saveRestartHistory(m.restartHistory); err != nil {
+		// Save to persistent storage (batched)
+		if err := m.saveRestartHistory(); err != nil {
 			log.Warnf("Failed to save restart history: %v", err)
 		}
 

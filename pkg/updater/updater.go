@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v45/github"
+	"github.com/nodexeus/sqd-agent/pkg/httpclient"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -46,8 +47,8 @@ func NewUpdater(currentVersion string) (*Updater, error) {
 	}
 
 	return &Updater{
-		httpClient:     &http.Client{Timeout: 60 * time.Second},
-		githubClient:   github.NewClient(nil),
+		httpClient:     httpclient.LongTimeoutClient,
+		githubClient:   github.NewClient(httpclient.LongTimeoutClient),
 		releaseURL:     "https://api.github.com/repos/nodexeus/sqd-agent/releases/latest",
 		currentVersion: currentVersion,
 		executablePath: execPath,

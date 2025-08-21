@@ -1,6 +1,7 @@
 package vectorconfig
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +26,14 @@ type NodeInfo struct {
 }
 
 // GenerateConfig generates the Vector configuration from discovered nodes
-func GenerateConfig(nodes []NodeInfo) error {
+func GenerateConfig(ctx context.Context, nodes []NodeInfo) error {
+	// Check if context is cancelled before starting
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	// Create endpoints list
 	endpoints := make([]string, 0, len(nodes)*2) // 2 endpoints per node (metrics and caddy)
 
@@ -50,6 +58,13 @@ func GenerateConfig(nodes []NodeInfo) error {
 	data, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal vector config: %w", err)
+	}
+
+	// Check context before directory creation
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	// Ensure directory exists

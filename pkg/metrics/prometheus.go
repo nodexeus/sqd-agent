@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"fmt"
-	"math/big"
 	"net/http"
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
@@ -179,6 +178,11 @@ func (e *PrometheusExporter) Start() error {
 
 	// Start HTTP server in a goroutine
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("Prometheus HTTP server goroutine panic recovered: %v", r)
+			}
+		}()
 		log.Infof("Starting Prometheus metrics server on port %d at path %s", e.config.Prometheus.Port, e.config.Prometheus.Path)
 		if err := e.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error starting Prometheus HTTP server: %v", err)
@@ -343,35 +347,27 @@ func (e *PrometheusExporter) UpdateMetrics() {
 		}
 
 		// StoredData
-		if status.StoredData != nil && status.StoredData.Sign() >= 0 {
-			// Convert big.Int to float64 for Prometheus
-			storedData, _ := new(big.Float).SetInt(status.StoredData).Float64()
-			e.nodeStoredData.With(labels).Set(storedData)
-			log.Debugf("Set storedData metric for %s: %s", status.PeerID, status.StoredData.String())
+		if status.StoredData >= 0 {
+			e.nodeStoredData.With(labels).Set(float64(status.StoredData))
+			log.Debugf("Set storedData metric for %s: %d", status.PeerID, status.StoredData)
 		}
 
 		// TotalDelegation
-		if status.TotalDelegation != nil && status.TotalDelegation.Sign() >= 0 {
-			// Convert big.Int to float64 for Prometheus
-			totalDelegation, _ := new(big.Float).SetInt(status.TotalDelegation).Float64()
-			e.nodeTotalDelegation.With(labels).Set(totalDelegation)
-			log.Debugf("Set totalDelegation metric for %s: %s", status.PeerID, status.TotalDelegation.String())
+		if status.TotalDelegation >= 0 {
+			e.nodeTotalDelegation.With(labels).Set(float64(status.TotalDelegation))
+			log.Debugf("Set totalDelegation metric for %s: %d", status.PeerID, status.TotalDelegation)
 		}
 
 		// ClaimedReward
-		if status.ClaimedReward != nil && status.ClaimedReward.Sign() >= 0 {
-			// Convert big.Int to float64 for Prometheus
-			claimedReward, _ := new(big.Float).SetInt(status.ClaimedReward).Float64()
-			e.nodeClaimedReward.With(labels).Set(claimedReward)
-			log.Debugf("Set claimedReward metric for %s: %s", status.PeerID, status.ClaimedReward.String())
+		if status.ClaimedReward >= 0 {
+			e.nodeClaimedReward.With(labels).Set(float64(status.ClaimedReward))
+			log.Debugf("Set claimedReward metric for %s: %d", status.PeerID, status.ClaimedReward)
 		}
 
 		// ClaimableReward
-		if status.ClaimableReward != nil && status.ClaimableReward.Sign() >= 0 {
-			// Convert big.Int to float64 for Prometheus
-			claimableReward, _ := new(big.Float).SetInt(status.ClaimableReward).Float64()
-			e.nodeClaimableReward.With(labels).Set(claimableReward)
-			log.Debugf("Set claimableReward metric for %s: %s", status.PeerID, status.ClaimableReward.String())
+		if status.ClaimableReward >= 0 {
+			e.nodeClaimableReward.With(labels).Set(float64(status.ClaimableReward))
+			log.Debugf("Set claimableReward metric for %s: %d", status.PeerID, status.ClaimableReward)
 		}
 
 		// Last restart timestamp
