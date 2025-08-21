@@ -268,10 +268,6 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 			log.Debugf("Fetching network status for node %s with peer ID %s", node.Instance, node.PeerID)
 			status, err := m.apiClient.GetNodeStatus(ctx, node.PeerID)
-			if status.Name == "" {
-				log.Debugf("Node %s has no name, likely unregistered", node.Instance)
-				continue
-			}
 			if err != nil {
 				log.Errorf("Failed to get network status for node %s: %v", node.Instance, err)
 				// If we get an error, mark the connection as down and break the loop
@@ -279,6 +275,10 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 					log.Warn("GraphQL API connection lost, will retry on next check")
 					break
 				}
+				continue
+			}
+			if status.Name == "" {
+				log.Debugf("Node %s has no name, likely unregistered", node.Instance)
 				continue
 			}
 
