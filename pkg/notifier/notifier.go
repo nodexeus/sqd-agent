@@ -39,24 +39,6 @@ type WebhookPayload struct {
 	UnhealthyReason string      `json:"unhealthyReason,omitempty"`
 }
 
-// NotifyNodeUnhealthy notifies that a node is unhealthy
-func (n *WebhookNotifier) NotifyNodeUnhealthy(node *monitor.NodeStatus, reason string) error {
-	if !n.config.Notifications.Enabled || !n.config.Notifications.WebhookEnabled {
-		return nil
-	}
-
-	payload := WebhookPayload{
-		Type:            "node_unhealthy",
-		Timestamp:       time.Now(),
-		Node:            node,
-		Message:         fmt.Sprintf("Node %s is unhealthy: %s", node.Instance, reason),
-		Server:          n.hostname,
-		UnhealthyReason: reason,
-	}
-
-	return n.sendWebhook(payload)
-}
-
 // NotifyNodeRestartAttempt notifies that a restart attempt is being made
 func (n *WebhookNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unhealthyReason string) error {
 	if !n.config.Notifications.Enabled || !n.config.Notifications.WebhookEnabled {
@@ -67,7 +49,8 @@ func (n *WebhookNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unh
 		Type:            "node_restart_attempt",
 		Timestamp:       time.Now(),
 		Node:            node,
-		Message:         fmt.Sprintf("Attempting to restart node %s", node.Instance),
+		Message:         fmt.Sprintf("Attempting to restart node %s - Local Status: %s, Online: %t, Jailed: %t, APR: %.2f%%, Reason: %s", 
+			node.Instance, node.LocalStatus, node.Online, node.Jailed, node.APR*100, unhealthyReason),
 		Server:          n.hostname,
 		UnhealthyReason: unhealthyReason,
 	}
@@ -175,37 +158,6 @@ type DiscordField struct {
 	Inline bool   `json:"inline,omitempty"`
 }
 
-// NotifyNodeUnhealthy notifies that a node is unhealthy
-func (n *DiscordNotifier) NotifyNodeUnhealthy(node *monitor.NodeStatus, reason string) error {
-	if !n.config.Notifications.Enabled || !n.config.Notifications.DiscordEnabled {
-		return nil
-	}
-
-	embed := DiscordEmbed{
-		Title:       "Node Unhealthy",
-		Description: fmt.Sprintf("Node %s is unhealthy", node.Instance),
-		Color:       16711680, // Red
-		Fields: []DiscordField{
-			{Name: "Instance", Value: node.Instance, Inline: true},
-			{Name: "Peer ID", Value: node.PeerID, Inline: true},
-			{Name: "SQD Name", Value: node.Name, Inline: false},
-			{Name: "Server", Value: n.hostname, Inline: true},
-			{Name: "🔥 Issues", Value: reason, Inline: false},
-			{Name: "Local Status", Value: node.LocalStatus, Inline: true},
-			{Name: "Online", Value: fmt.Sprintf("%v", node.Online), Inline: true},
-			{Name: "Jailed", Value: fmt.Sprintf("%v", node.Jailed), Inline: true},
-			{Name: "APR", Value: fmt.Sprintf("%.2f", node.APR), Inline: true},
-		},
-		Timestamp: time.Now().Format(time.RFC3339),
-	}
-
-	payload := DiscordWebhookPayload{
-		Username: "SQD Node Monitor",
-		Embeds:   []DiscordEmbed{embed},
-	}
-
-	return n.sendDiscordWebhooks(payload)
-}
 
 // NotifyNodeRestartAttempt notifies that a restart attempt is being made
 func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unhealthyReason string) error {
@@ -221,6 +173,10 @@ func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unh
 			{Name: "Instance", Value: node.Instance, Inline: true},
 			{Name: "Peer ID", Value: node.PeerID, Inline: true},
 			{Name: "SQD Name", Value: node.Name, Inline: false},
+			{Name: "Local Status", Value: node.LocalStatus, Inline: true},
+			{Name: "Online", Value: fmt.Sprintf("%t", node.Online), Inline: true},
+			{Name: "Jailed", Value: fmt.Sprintf("%t", node.Jailed), Inline: true},
+			{Name: "APR", Value: fmt.Sprintf("%.2f%%", node.APR*100), Inline: true},
 			{Name: "Server", Value: n.hostname, Inline: true},
 			{Name: "Reason", Value: unhealthyReason, Inline: false},
 		},

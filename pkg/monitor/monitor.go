@@ -162,7 +162,6 @@ func loadRestartHistory() (*RestartHistory, error) {
 
 // Notifier is an interface for notification handlers
 type Notifier interface {
-	NotifyNodeUnhealthy(node *NodeStatus, reason string) error
 	NotifyNodeRestartAttempt(node *NodeStatus, unhealthyReason string) error
 	NotifyNodeRestartSuccess(node *NodeStatus, unhealthyReason string) error
 	NotifyNodeRestartFailure(node *NodeStatus, unhealthyReason string, err error) error
@@ -406,7 +405,7 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 	// Update all nodes
 	for instance, status := range updates {
-		// Check if node was previously healthy
+		// Check if node was previously healthy (needed for health status tracking)
 		wasHealthy := true
 		if existing, ok := m.nodes[instance]; ok {
 			wasHealthy = existing.Healthy
@@ -426,14 +425,12 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 
 		m.nodes[instance] = status
 
-		// Notify if node became unhealthy
+		// Log health status changes (but don't send notifications - those only happen on restart attempts)
 		if wasHealthy && !status.Healthy {
 			reason := unhealthyNodes[instance]
-			for _, notifier := range m.notifiers {
-				if err := notifier.NotifyNodeUnhealthy(status, reason); err != nil {
-					log.Errorf("Error sending unhealthy notification: %v", err)
-				}
-			}
+			log.Infof("Node %s became unhealthy: %s", instance, reason)
+		} else if !wasHealthy && status.Healthy {
+			log.Infof("Node %s became healthy", instance)
 		}
 	}
 
