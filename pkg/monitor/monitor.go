@@ -631,8 +631,15 @@ func (m *Monitor) sendRestartAnnotation(node *NodeStatus, startTime time.Time, s
 		Text: text,
 	}
 	
+	log.Debugf("Attempting to send Grafana annotation: enabled=%t, enableAnnotations=%t, url=%s", 
+		m.config.Notifications.Enabled, 
+		m.config.Notifications.EnableAnnotations, 
+		m.config.Notifications.AnnotationURL)
+	
 	if err := grafana.SendAnnotation(m.config, annotation); err != nil {
 		log.Warnf("Failed to send Grafana annotation for restart: %v", err)
+	} else {
+		log.Infof("Successfully sent Grafana annotation for %s restart", node.Instance)
 	}
 }
 

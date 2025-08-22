@@ -50,7 +50,7 @@ func (n *WebhookNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unh
 		Timestamp:       time.Now(),
 		Node:            node,
 		Message:         fmt.Sprintf("Attempting to restart node %s - Local Status: %s, Online: %t, Jailed: %t, APR: %.2f%%, Reason: %s", 
-			node.Instance, node.LocalStatus, node.Online, node.Jailed, node.APR*100, unhealthyReason),
+			node.Instance, node.LocalStatus, node.Online, node.Jailed, node.APR, unhealthyReason),
 		Server:          n.hostname,
 		UnhealthyReason: unhealthyReason,
 	}
@@ -176,7 +176,7 @@ func (n *DiscordNotifier) NotifyNodeRestartAttempt(node *monitor.NodeStatus, unh
 			{Name: "Local Status", Value: node.LocalStatus, Inline: true},
 			{Name: "Online", Value: fmt.Sprintf("%t", node.Online), Inline: true},
 			{Name: "Jailed", Value: fmt.Sprintf("%t", node.Jailed), Inline: true},
-			{Name: "APR", Value: fmt.Sprintf("%.2f%%", node.APR*100), Inline: true},
+			{Name: "APR", Value: fmt.Sprintf("%.2f%%", node.APR), Inline: true},
 			{Name: "Server", Value: n.hostname, Inline: true},
 			{Name: "Reason", Value: unhealthyReason, Inline: false},
 		},

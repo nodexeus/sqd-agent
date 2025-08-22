@@ -8,6 +8,7 @@ import (
 
 	"github.com/nodexeus/sqd-agent/pkg/config"
 	"github.com/nodexeus/sqd-agent/pkg/httpclient"
+	log "github.com/sirupsen/logrus"
 )
 
 // Annotation represents a Grafana annotation payload
@@ -21,12 +22,16 @@ type Annotation struct {
 // SendAnnotation sends an annotation to Grafana
 func SendAnnotation(config *config.Config, annotation Annotation) error {
 	if !config.Notifications.Enabled || !config.Notifications.EnableAnnotations {
+		log.Debugf("Grafana annotations disabled: notifications.enabled=%t, enableAnnotations=%t", 
+			config.Notifications.Enabled, config.Notifications.EnableAnnotations)
 		return nil
 	}
 
 	if config.Notifications.AnnotationURL == "" {
 		return fmt.Errorf("annotation URL not configured")
 	}
+	
+	log.Debugf("Sending Grafana annotation to %s: %+v", config.Notifications.AnnotationURL, annotation)
 
 	// Prepare the request body
 	body, err := json.Marshal(annotation)
