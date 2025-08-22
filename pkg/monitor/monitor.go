@@ -219,7 +219,8 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 	// Start periodic monitoring
 	monitorTicker := time.NewTicker(m.config.MonitorPeriod)
-	actionTicker := time.NewTicker(m.config.ActionPeriod)
+	// Action ticker should run frequently to check for restart eligibility, not wait for the full action period
+	actionTicker := time.NewTicker(m.config.MonitorPeriod)
 
 	go func() {
 		defer func() {
@@ -422,9 +423,14 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 			if restartInfo, ok := m.restartHistory.Nodes[instance]; ok {
 				status.LastRestart = restartInfo.LastRestart
 				status.RestartCount = restartInfo.RestartCount
-				log.Debugf("Loaded persistent restart info for %s: last restart %s, count %d",
+				log.Infof("Loaded persistent restart info for %s: last restart %s, count %d",
 					instance, status.LastRestart.Format(time.RFC3339), status.RestartCount)
+			} else {
+				log.Infof("No persistent restart history found for %s", instance)
 			}
+		} else {
+			log.Debugf("Node %s already has restart info in memory: last restart %s, count %d",
+				instance, status.LastRestart.Format(time.RFC3339), status.RestartCount)
 		}
 
 		m.nodes[instance] = status
@@ -468,16 +474,42 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 // dryRun when true will log actions but not execute them
 func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 	now := time.Now()
+	log.Infof("takeActions called - checking %d nodes, dryRun=%t", len(m.nodes), dryRun)
+
+	unhealthyCount := 0
+	for _, node := range m.nodes {
+		if !node.Healthy {
+			unhealthyCount++
+		}
+	}
+	log.Infof("Found %d unhealthy nodes out of %d total", unhealthyCount, len(m.nodes))
 
 	for _, node := range m.nodes {
 		// Skip healthy nodes
 		if node.Healthy {
+			log.Debugf("Node %s is healthy, skipping", node.Instance)
 			continue
+		}
+
+		log.Infof("Processing unhealthy node %s - LocalStatus: %s, Online: %t, Jailed: %t, NetworkStatus: %s", 
+			node.Instance, node.LocalStatus, node.Online, node.Jailed, node.NetworkStatus)
+
+		// Log detailed restart timing information for unhealthy nodes
+		if node.LastRestart.IsZero() {
+			log.Infof("Node %s is unhealthy and has no restart history - eligible for restart", node.Instance)
+		} else {
+			timeSinceRestart := now.Sub(node.LastRestart)
+			log.Infof("Node %s is unhealthy - last restart: %s (%s ago), action period: %s, eligible: %t", 
+				node.Instance, 
+				node.LastRestart.Format(time.RFC3339), 
+				timeSinceRestart.Round(time.Second),
+				m.config.ActionPeriod,
+				timeSinceRestart >= m.config.ActionPeriod)
 		}
 
 		// Skip nodes that were restarted recently
 		if !node.LastRestart.IsZero() && now.Sub(node.LastRestart) < m.config.ActionPeriod {
-			log.Debugf("Skipping restart for %s: last restart was %s ago, need to wait %s",
+			log.Infof("Skipping restart for %s: last restart was %s ago, need to wait %s",
 				node.Instance,
 				now.Sub(node.LastRestart).Round(time.Second),
 				m.config.ActionPeriod)
@@ -485,6 +517,7 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 		}
 
 		reason := m.getUnhealthyReason(node)
+		log.Infof("Node %s is eligible for restart. Reason: %s", node.Instance, reason)
 
 		if dryRun {
 			log.Infof("Would attempt to restart node %s (restart count: %d). Reason: %s",
@@ -534,6 +567,8 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 		}
 
 		if err != nil {
+			log.Errorf("Failed to restart node %s: %v", node.Instance, err)
+			
 			// Send restart failure notifications
 			for _, notifier := range m.notifiers {
 				if err := notifier.NotifyNodeRestartFailure(node, reason, err); err != nil {
@@ -544,7 +579,8 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 			// Send Grafana region annotation for restart failure
 			m.sendRestartAnnotation(node, restartStartTime, false, reason, err)
 			
-			return fmt.Errorf("failed to restart node %s: %w", node.Instance, err)
+			// Continue to process other nodes instead of returning
+			continue
 		}
 
 		// Notify restart success
