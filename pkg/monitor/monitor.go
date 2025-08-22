@@ -217,16 +217,13 @@ func (m *Monitor) Start(ctx context.Context) error {
 		log.Info("Agent will continue to run and retry on next monitor period")
 	}
 
-	// Initial action check (don't wait for the first ticker)
-	log.Infof("Running initial action check with passiveMode=%t", m.config.PassiveMode)
-	if err := m.takeActions(ctx, m.config.PassiveMode); err != nil {
-		log.Errorf("Error during initial action check: %v", err)
-	}
 
 	// Start periodic monitoring
+	log.Infof("Starting tickers - Monitor period: %s, Action period: %s", m.config.MonitorPeriod, m.config.ActionPeriod)
 	monitorTicker := time.NewTicker(m.config.MonitorPeriod)
 	// Action ticker should run frequently to check for restart eligibility, not wait for the full action period
 	actionTicker := time.NewTicker(m.config.MonitorPeriod)
+	log.Infof("Both tickers set to run every %s", m.config.MonitorPeriod)
 
 	go func() {
 		defer func() {
