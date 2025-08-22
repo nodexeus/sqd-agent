@@ -33,11 +33,13 @@ type Config struct {
 
 // NotificationConfig contains notification-related settings
 type NotificationConfig struct {
-	Enabled         bool          `yaml:"enabled"`
-	WebhookEnabled  bool          `yaml:"webhookEnabled"`
-	WebhookURL      string        `yaml:"webhookUrl"`
-	DiscordEnabled  bool          `yaml:"discordEnabled"`
-	DiscordWebhooks []DiscordHook `yaml:"discordWebhooks"`
+	Enabled            bool          `yaml:"enabled"`
+	WebhookEnabled     bool          `yaml:"webhookEnabled"`
+	WebhookURL         string        `yaml:"webhookUrl"`
+	DiscordEnabled     bool          `yaml:"discordEnabled"`
+	DiscordWebhooks    []DiscordHook `yaml:"discordWebhooks"`
+	EnableAnnotations  bool          `yaml:"enableAnnotations"`
+	AnnotationURL      string        `yaml:"annotationUrl"`
 }
 
 // DiscordHook represents a Discord webhook configuration

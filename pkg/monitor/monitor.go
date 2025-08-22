@@ -11,6 +11,7 @@ import (
 	"github.com/nodexeus/sqd-agent/pkg/api"
 	"github.com/nodexeus/sqd-agent/pkg/config"
 	"github.com/nodexeus/sqd-agent/pkg/discovery"
+	"github.com/nodexeus/sqd-agent/pkg/grafana"
 	"github.com/nodexeus/sqd-agent/pkg/vectorconfig"
 	log "github.com/sirupsen/logrus"
 )
@@ -51,7 +52,8 @@ type NodeStatus struct {
 	CreatedAt         time.Time
 	LastChecked       time.Time
 	LastRestart       time.Time
-	RestartCount      int // Count restarts for better tracking
+	RestartStartTime  time.Time // When the current restart was initiated
+	RestartCount      int       // Count restarts for better tracking
 	Healthy           bool
 }
 
@@ -67,6 +69,7 @@ type Monitor struct {
 	vectorConfig          *vectorconfig.VectorConfig
 	restartHistoryDirty   bool
 	lastRestartHistorySave time.Time
+	hostname              string
 }
 
 // getRestartHistoryPath returns the path to the restart history file
@@ -173,7 +176,7 @@ type MetricsExporter interface {
 }
 
 // NewMonitor creates a new node monitor
-func NewMonitor(config *config.Config, discoverer *discovery.Discoverer, apiClient *api.GraphQLClient) *Monitor {
+func NewMonitor(config *config.Config, discoverer *discovery.Discoverer, apiClient *api.GraphQLClient, hostname string) *Monitor {
 	// Load restart history from persistent storage
 	history, err := loadRestartHistory()
 	if err != nil {
@@ -191,6 +194,7 @@ func NewMonitor(config *config.Config, discoverer *discovery.Discoverer, apiClie
 		restartHistory:        history,
 		restartHistoryDirty:   false,
 		lastRestartHistorySave: time.Now(),
+		hostname:              hostname,
 	}
 }
 
@@ -497,13 +501,20 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 		}
 
 		// Actual restart logic for non-dry-run mode
+		restartStartTime := time.Now()
+		node.RestartStartTime = restartStartTime
+		
 		log.Infof("Attempting to restart node %s (restart count: %d). Reason: %s",
 			node.Instance, node.RestartCount+1, reason)
+		
+		// Send restart attempt notification
 		for _, notifier := range m.notifiers {
 			if err := notifier.NotifyNodeRestartAttempt(node, reason); err != nil {
 				log.Errorf("Error sending restart attempt notification: %v", err)
 			}
 		}
+
+		// Grafana region annotation will be created after restart completes (success or failure)
 
 		err := m.discoverer.RestartNode(node.Instance)
 
@@ -523,11 +534,16 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 		}
 
 		if err != nil {
+			// Send restart failure notifications
 			for _, notifier := range m.notifiers {
 				if err := notifier.NotifyNodeRestartFailure(node, reason, err); err != nil {
 					log.Errorf("Error sending restart failure notification: %v", err)
 				}
 			}
+			
+			// Send Grafana region annotation for restart failure
+			m.sendRestartAnnotation(node, restartStartTime, false, reason, err)
+			
 			return fmt.Errorf("failed to restart node %s: %w", node.Instance, err)
 		}
 
@@ -537,11 +553,47 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 				log.Errorf("Error sending restart success notification: %v", err)
 			}
 		}
+		
+		// Send Grafana region annotation for restart success
+		m.sendRestartAnnotation(node, restartStartTime, true, reason, nil)
 
 		log.Infof("Successfully restarted node %s (restart count: %d)", node.Instance, node.RestartCount)
 	}
 
 	return nil
+}
+
+// sendRestartAnnotation sends a single region annotation for the restart operation
+func (m *Monitor) sendRestartAnnotation(node *NodeStatus, startTime time.Time, success bool, reason string, restartErr error) {
+	endTime := time.Now().UnixMilli()
+	startTimeMs := startTime.UnixMilli()
+	
+	var tag, text string
+	if success {
+		tag = "sqd-restart-success"
+		text = fmt.Sprintf("Node restart successful: %s (Reason: %s)", node.Instance, reason)
+	} else {
+		tag = "sqd-restart-failure"
+		text = fmt.Sprintf("Node restart failed: %s (Reason: %s, Error: %v)", node.Instance, reason, restartErr)
+	}
+	
+	annotation := grafana.Annotation{
+		Time:    startTimeMs,
+		TimeEnd: &endTime,
+		Tags: []string{
+			tag,
+			node.Instance,
+			node.Name,
+			m.hostname,
+			node.PeerID,
+			reason,
+		},
+		Text: text,
+	}
+	
+	if err := grafana.SendAnnotation(m.config, annotation); err != nil {
+		log.Warnf("Failed to send Grafana annotation for restart: %v", err)
+	}
 }
 
 // isNodeHealthy determines if a node is healthy based on its status

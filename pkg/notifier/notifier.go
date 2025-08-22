@@ -275,3 +275,4 @@ func (n *DiscordNotifier) sendDiscordWebhooks(payload DiscordWebhookPayload) err
 
 	return lastErr
 }
+

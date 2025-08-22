@@ -57,7 +57,7 @@ func main() {
 	// Create components
 	discoverer := discovery.NewDiscoverer(cfg)
 	apiClient := api.NewGraphQLClient(cfg)
-	mon := monitor.NewMonitor(cfg, discoverer, apiClient)
+	mon := monitor.NewMonitor(cfg, discoverer, apiClient, hostname)
 
 	// Add notifiers
 	if cfg.Notifications.Enabled {
