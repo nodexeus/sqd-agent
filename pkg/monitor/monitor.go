@@ -217,6 +217,12 @@ func (m *Monitor) Start(ctx context.Context) error {
 		log.Info("Agent will continue to run and retry on next monitor period")
 	}
 
+	// Initial action check (don't wait for the first ticker)
+	log.Infof("Running initial action check with passiveMode=%t", m.config.PassiveMode)
+	if err := m.takeActions(ctx, m.config.PassiveMode); err != nil {
+		log.Errorf("Error during initial action check: %v", err)
+	}
+
 	// Start periodic monitoring
 	monitorTicker := time.NewTicker(m.config.MonitorPeriod)
 	// Action ticker should run frequently to check for restart eligibility, not wait for the full action period
@@ -241,6 +247,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 				}
 			case <-actionTicker.C:
 				// Always run actions, but pass the passive mode flag
+				log.Infof("Action ticker fired - calling takeActions with passiveMode=%t", m.config.PassiveMode)
 				if err := m.takeActions(ctx, m.config.PassiveMode); err != nil {
 					log.Errorf("Error taking actions on nodes: %v", err)
 				}
