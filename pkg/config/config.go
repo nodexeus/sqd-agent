@@ -40,6 +40,7 @@ type NotificationConfig struct {
 	DiscordWebhooks    []DiscordHook `yaml:"discordWebhooks"`
 	EnableAnnotations  bool          `yaml:"enableAnnotations"`
 	AnnotationURL      string        `yaml:"annotationUrl"`
+	AnnotationAPIKey   string        `yaml:"annotationApiKey"`   // Grafana API key for authentication
 }
 
 // DiscordHook represents a Discord webhook configuration

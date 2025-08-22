@@ -18,6 +18,7 @@ notifications:
       url: "https://discord.com/api/webhooks/your-webhook-url"
   enableAnnotations: false  # Enable Grafana annotations for restart events
   annotationUrl: "https://grafana.example.com"  # Grafana base URL (will append /api/annotations)
+  annotationApiKey: ""  # Grafana API key for authentication (required for annotations)
 
 # Prometheus metrics settings
 prometheus:

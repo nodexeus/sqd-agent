@@ -30,6 +30,10 @@ func SendAnnotation(config *config.Config, annotation Annotation) error {
 	if config.Notifications.AnnotationURL == "" {
 		return fmt.Errorf("annotation URL not configured")
 	}
+
+	if config.Notifications.AnnotationAPIKey == "" {
+		return fmt.Errorf("annotation API key not configured")
+	}
 	
 	log.Debugf("Sending Grafana annotation to %s: %+v", config.Notifications.AnnotationURL, annotation)
 
@@ -49,6 +53,7 @@ func SendAnnotation(config *config.Config, annotation Annotation) error {
 	// Set headers
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+config.Notifications.AnnotationAPIKey)
 
 	// Send the request
 	resp, err := httpclient.DefaultClient.Do(req)
