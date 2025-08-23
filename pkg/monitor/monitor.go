@@ -684,7 +684,7 @@ func (m *Monitor) isNodeHealthy(node *NodeStatus) bool {
 
 // getUnhealthyReason returns a human-readable reason why a node is unhealthy
 func (m *Monitor) getUnhealthyReason(node *NodeStatus) string {
-	if node.LocalStatus != "running" && node.LocalStatus != "busy" {
+	if node.LocalStatus == "failed" {
 		return fmt.Sprintf("Node is not running locally (status: %s)", node.LocalStatus)
 	}
 
