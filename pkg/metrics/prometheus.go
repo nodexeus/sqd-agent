@@ -32,11 +32,14 @@ type PrometheusExporter struct {
 	nodeLocalStatus       *prometheus.GaugeVec
 	nodeHealthy           *prometheus.GaugeVec
 	lastRestart           *prometheus.GaugeVec
+	agentInfo             *prometheus.GaugeVec
 	server                *http.Server
+	version               string
+	hostname              string
 }
 
 // NewPrometheusExporter creates a new Prometheus exporter
-func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvider) *PrometheusExporter {
+func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvider, version, hostname string) *PrometheusExporter {
 	// Create a new registry
 	registry := prometheus.NewRegistry()
 
@@ -44,6 +47,8 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 		config:          cfg,
 		getNodeStatuses: getNodeStatuses,
 		registry:        registry,
+		version:         version,
+		hostname:        hostname,
 		nodeAPR: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "sqd_node_apr",
@@ -135,6 +140,13 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 			},
 			[]string{"instance", "peer_id", "name", "version", "image_version"},
 		),
+		agentInfo: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "sqd_agent_info",
+				Help: "Information about the SQD Agent including version, hostname, and configuration",
+			},
+			[]string{"version", "hostname", "monitor_period", "action_period", "passive_mode", "auto_update"},
+		),
 	}
 
 	// Register metrics with the registry
@@ -151,6 +163,7 @@ func NewPrometheusExporter(cfg *config.Config, getNodeStatuses NodeStatusProvide
 	registry.MustRegister(exporter.nodeTotalDelegation)
 	registry.MustRegister(exporter.nodeClaimedReward)
 	registry.MustRegister(exporter.nodeClaimableReward)
+	registry.MustRegister(exporter.agentInfo)
 
 	return exporter
 }
@@ -244,6 +257,17 @@ func (e *PrometheusExporter) UpdateMetrics() {
 	e.nodeTotalDelegation.Reset()
 	e.nodeClaimedReward.Reset()
 	e.nodeClaimableReward.Reset()
+
+	// Update agent info metric (static information about the agent itself)
+	agentLabels := prometheus.Labels{
+		"version":        e.version,
+		"hostname":       e.hostname,
+		"monitor_period": e.config.MonitorPeriod.String(),
+		"action_period":  e.config.ActionPeriod.String(),
+		"passive_mode":   fmt.Sprintf("%v", e.config.PassiveMode),
+		"auto_update":    fmt.Sprintf("%v", e.config.AutoUpdate),
+	}
+	e.agentInfo.With(agentLabels).Set(1)
 
 	// Update metrics for each node
 	for instance, status := range statuses {

@@ -22,7 +22,7 @@ import (
 var (
 	configPath  = flag.String("config", "/etc/sqd-agent/config.yaml", "Path to config file")
 	showVersion = flag.Bool("version", false, "Show version information and exit")
-	version     = "0.4.6"
+	version     = "0.4.7"
 	buildTime   = "unknown"
 )
 
@@ -81,7 +81,7 @@ func main() {
 		}
 
 		// Create the exporter with the function instead of direct reference
-		prometheusExporter = metrics.NewPrometheusExporter(cfg, statusFn)
+		prometheusExporter = metrics.NewPrometheusExporter(cfg, statusFn, version, hostname)
 
 		if err := prometheusExporter.Start(); err != nil {
 			log.Fatalf("Failed to start Prometheus exporter: %v", err)
