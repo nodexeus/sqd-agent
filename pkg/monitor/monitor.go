@@ -646,7 +646,7 @@ func (m *Monitor) sendRestartAnnotation(node *NodeStatus, startTime time.Time, s
 // isNodeHealthy determines if a node is healthy based on its status
 func (m *Monitor) isNodeHealthy(node *NodeStatus) bool {
 	// Check local status
-	if node.LocalStatus != "running" && node.LocalStatus != "busy" {
+	if node.LocalStatus == "failed" {
 		return false
 	}
 
