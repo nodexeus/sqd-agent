@@ -49,20 +49,24 @@ func (d *Discoverer) DiscoverNodes() ([]NodeInfo, error) {
 
 	log.Debugf("Discovered %d nodes: %v", len(nodes), nodeNames(nodes))
 
-	// Get additional information for each instance
-	for i, node := range nodes {
+	// Get additional information for each instance and filter out nodes without peer IDs
+	var validNodes []NodeInfo
+	for _, node := range nodes {
 		// Get peer ID
 		peerID, err := d.getNodePeerID(node.Instance)
-		if err != nil {
-			// Log but continue with other nodes
-			log.Warnf("Failed to get peer ID for instance %s: %v", node.Instance, err)
-		} else {
-			nodes[i].PeerID = peerID
-			log.Debugf("Node %s has peer ID %s", node.Instance, peerID)
+		if err != nil || strings.TrimSpace(peerID) == "" {
+			// Skip nodes without valid peer IDs
+			log.Warnf("Skipping node %s: failed to get peer ID or peer ID is blank: %v", node.Instance, err)
+			continue
 		}
+
+		node.PeerID = peerID
+		log.Debugf("Node %s has peer ID %s", node.Instance, peerID)
+		validNodes = append(validNodes, node)
 	}
 
-	return nodes, nil
+	log.Infof("Filtered nodes: %d valid nodes out of %d discovered (nodes with blank peer IDs excluded)", len(validNodes), len(nodes))
+	return validNodes, nil
 }
 
 // Helper function to extract node names for logging
