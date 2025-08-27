@@ -495,6 +495,12 @@ func (m *Monitor) takeActions(ctx context.Context, dryRun bool) error {
 			continue
 		}
 
+		// Skip nodes that are intentionally stopped
+		if node.LocalStatus == "stopped" {
+			log.Infof("Node %s is intentionally stopped, skipping restart", node.Instance)
+			continue
+		}
+
 		log.Infof("Processing unhealthy node %s - LocalStatus: %s, Online: %t, Jailed: %t, NetworkStatus: %s", 
 			node.Instance, node.LocalStatus, node.Online, node.Jailed, node.NetworkStatus)
 
