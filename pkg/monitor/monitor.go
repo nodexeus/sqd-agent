@@ -397,9 +397,11 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 					status.NetworkStatus = "active" // Normal registered node
 				}
 			} else {
-				// We have a peer ID but no network status - this is a newly created node
+				// We have a peer ID but no network status - this is a newly created node or unregistered node
+				// Clear the name to prevent using the local name for unregistered nodes
+				status.Name = ""
 				status.NetworkStatus = "unregistered"
-				log.Debugf("Node %s has peer ID %s but no network status, marking as unregistered", status.Instance, status.PeerID)
+				log.Debugf("Node %s has peer ID %s but no network status, marking as unregistered and clearing name", status.Instance, status.PeerID)
 			}
 		}
 
