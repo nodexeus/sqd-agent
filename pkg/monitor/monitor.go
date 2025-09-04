@@ -321,15 +321,16 @@ func (m *Monitor) discoverAndCheck(ctx context.Context) error {
 				}
 				continue
 			}
-			if status.Name == "" {
-				log.Debugf("Node %s has no name, likely unregistered", node.Instance)
-				continue
-			}
-
+			// Always add to networkStatuses map, even if name is empty
+			// This ensures we properly handle nodes that return data but have no name
 			log.Debugf("Successfully retrieved network status for node %s: online=%v, jailed=%v, jailReason=%s, name=%s, apr=%f, peerID=%s, version=%s, claimedReward=%d, claimableReward=%d, servedData24Hours=%d, storedData=%d, totalDelegation=%d, uptime24Hours=%f, queries24Hours=%d",
 				node.Instance, status.Online, status.Jailed, status.JailReason, status.Name, status.APR, status.PeerID, status.Version, status.ClaimedReward, status.ClaimableReward, status.ServedData24Hours, status.StoredData, status.TotalDelegation, status.Uptime24Hours, status.Queries24Hours)
 
 			networkStatuses[node.PeerID] = status
+			
+			if status.Name == "" {
+				log.Debugf("Node %s has network response but no name, likely unregistered", node.Instance)
+			}
 		}
 
 		if len(networkStatuses) == 0 && len(nodes) > 0 {
